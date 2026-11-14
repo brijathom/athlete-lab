@@ -1,4 +1,4 @@
-# Athlete Lab — Milestone 1
+# Athlete Lab — Milestones 1 and 2A
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
 
@@ -37,6 +37,34 @@ The Playwright suite starts the production preview on port 4173 and tests Chromi
 6. Set your profile, weekly workout target and goals. Use **Save profile & goals** to commit those edits. Try the System, Light and Dark themes.
 7. Export a JSON backup from Activity or Profile. It includes programmes, prescriptions, logs, profile, goals, theme and schema version. Export restoration/import is not part of this milestone.
 
+## Football Skills and Recovery (Milestone 2A)
+
+Open **Skills** or **Recovery** from the desktop sidebar or the shortcuts above the page content on iPhone. The five main mobile tabs are preserved.
+
+### Skills practice
+
+- Create a Skills session in the active programme, or add one for a selected Calendar date. The existing session editor also supports switching a session to Skills.
+- Define drills with a skill area, practice objective, success criterion, planned sets and prescription. Supported areas cover one-point and two-point shooting, goal finishing, free-taking, short/long kick-passing, both-foot work, carrying/soloing, first touch/fielding, marking/defending, separation/deception and tactical decisions.
+- Optionally specify distance in metres and an angle description; select foot and pressure. Scoring categories are user-selected: the app does not infer scoring rules from distance.
+- After practising, log actual attempts with **Success +1**, **Miss +1** and undo, or enter totals directly. Both-foot prescriptions open separate left/right blocks. Add further blocks for a change of conditions. Unused blocks stay unrecorded. Actual duration and effort use the existing workout log fields.
+- Skills sessions and completed logs appear in Calendar and Activity. A saved log snapshots the drill, objectives, criteria and conditions, preserving history if the plan is edited or deleted.
+- Review history across programmes, filtered by skill, foot, pressure and date period. Left/right counts describe practice exposure. Success rates are weighted by attempts and are only compared within matching drill names, objectives, success criteria and recorded conditions. Unspecified conditions can hide real differences, so these are practice observations rather than standardised performance tests.
+- The change metric compares the earlier half of comparable sessions with the more recent half (the recent half receives the extra session for odd totals). It uses percentage points and displays each denominator. At least two sessions are required; multiple blocks in the same session do not create a trend by themselves.
+
+### Recovery observations
+
+- Use **Check in** on Today, **Quick check-in** in Recovery, or a Calendar date. Nothing is required daily and no reminders or automatic injury scores are generated.
+- Record training availability, illness noted, missed training and optional recovery observations. Link missed sessions from any programme on the check-in date; links keep their original names even if the plan changes. These observations do not change completion logs or automatically cancel sessions.
+- Add muscle/joint/other symptoms with location, side, a self-reported 0–10 severity, optional duration in days and notes. Zero can explicitly record no symptoms at that observation; missing check-ins are never interpreted as zero.
+- Edit/delete check-ins, filter by period, location or side, and inspect symptom history for a matching type/location/side. The chart displays up to the latest 12 recorded observations; the table includes all matches. Counts of symptom, illness and missed-training days deduplicate dates, without filling missing days.
+- Recovery entries appear in Calendar with a distinct dot. Today only shows the latest check-in from today, so old availability is not presented as current.
+
+### Persistence and limits
+
+The existing IndexedDB database and object store are retained. Document schema version 1 upgrades to version 2 by preserving all existing fields and adding an empty `recoveryEntries` array. Existing logs are not converted into skills results. No historical skills or recovery data is seeded. New data is included in JSON exports and remains available offline with the production app.
+
+This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. Local-only storage, manual export and the existing single-tab editing limitation remain; backup import and cloud sync are not included.
+
 ## Install and test offline
 
 ```sh
@@ -51,6 +79,8 @@ For iPhone installation, host the `dist/` directory at an HTTPS origin (or use a
 ## Architecture and data guarantees
 
 - `src/domain.ts`: versioned entities, validation, local calendar-date functions and the clearly labelled proposed Gaelic Football Performance starter programme.
+- `src/skills-domain.ts`, `src/skills-ui.tsx`, `src/SkillFields.tsx`: structured drills, explicit attempt logging, weighted metrics and like-for-like comparisons, reusing sessions and workout logs.
+- `src/recovery-domain.ts`, `src/recovery-ui.tsx`: optional recovery records, validation, symptom history and calendar/dashboard views.
 - `src/repository.ts`: `AthleteRepository` interface and IndexedDB adapter. Replace or extend the adapter for a future API/cloud sync implementation. The UI only commits state after a successful write; failures remain visible.
 - `src/App.tsx`: application navigation, Today, weekly calendar, programme selection, history, profile/goals and app installation/update handling.
 - `src/components.tsx`: accessible dialog, prescription editor and explicit workout logger.
