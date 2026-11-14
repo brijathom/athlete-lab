@@ -1,7 +1,7 @@
 import { openDB, type DBSchema } from 'idb'
-import { createInitialData, migrateData, type AppData, type LegacyAppData } from './domain'
+import { createInitialData, migrateData, type AppData, type StoredAppData } from './domain'
 import { validateBackupData } from './backup'
-interface AthleteDB extends DBSchema { state: { key: string; value: AppData | LegacyAppData } }
+interface AthleteDB extends DBSchema { state: { key: string; value: StoredAppData } }
 // UI depends on this interface; future remote adapters can implement it.
 export interface AthleteRepository { load(): Promise<AppData>; save(data: AppData): Promise<void>; restore(data: unknown): Promise<AppData> }
 export class IndexedDBRepository implements AthleteRepository {

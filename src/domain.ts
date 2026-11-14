@@ -1,5 +1,6 @@
 import { validateSkillDrill, validateSkillResults, type SkillDrill, type SkillResult } from './skills-domain'
 import type { RecoveryEntry } from './recovery-domain'
+import { createPerformanceData, type PerformanceData } from './performance-domain'
 export type Category = 'Strength' | 'Conditioning' | 'Speed' | 'Recovery' | 'Skills'
 export type Theme = 'system' | 'light' | 'dark'
 export interface Exercise { id: string; name: string; sets: number; prescription: string; rest: string; notes: string; skill?: SkillDrill }
@@ -8,11 +9,14 @@ export interface Programme { id: string; name: string; description: string }
 export interface SetResult { exerciseId: string; set: number; done: boolean; reps: string; load: string }
 export interface WorkoutLog { id: string; sessionId: string; title: string; category: Category; date: string; minutes: number; rpe: number; notes: string; results: SetResult[]; exercises: Exercise[]; savedAt: string; skillResults?: SkillResult[] }
 export interface Profile { name: string; sport: string; position: string; weeklyTarget: number; goals: { id: string; title: string; done: boolean }[] }
-export interface AppData { version: 2; programmes: Programme[]; activeProgrammeId: string; sessions: Session[]; logs: WorkoutLog[]; profile: Profile; theme: Theme; recoveryEntries: RecoveryEntry[] }
-export type LegacyAppData = Omit<AppData, 'version' | 'recoveryEntries'> & { version: 1 }
-export function migrateData(data: AppData | LegacyAppData): AppData {
-  if (data.version === 1) return { ...data, version: 2, recoveryEntries: [] }
-  if (data.version === 2 && Array.isArray(data.recoveryEntries)) return data
+export interface AppData { version: 3; programmes: Programme[]; activeProgrammeId: string; sessions: Session[]; logs: WorkoutLog[]; profile: Profile; theme: Theme; recoveryEntries: RecoveryEntry[]; performance: PerformanceData }
+export type Version2AppData = Omit<AppData, 'version' | 'performance'> & { version: 2 }
+export type LegacyAppData = Omit<Version2AppData, 'version' | 'recoveryEntries'> & { version: 1 }
+export type StoredAppData = AppData | Version2AppData | LegacyAppData
+export function migrateData(data: StoredAppData): AppData {
+  if (data.version === 1) return { ...data, version: 3, recoveryEntries: [], performance: createPerformanceData() }
+  if (data.version === 2 && Array.isArray(data.recoveryEntries)) return { ...data, version: 3, performance: createPerformanceData() }
+  if (data.version === 3 && Array.isArray(data.recoveryEntries) && data.performance) return data
   throw new Error('This data version is unsupported.')
 }
 export const categories: Category[] = ['Strength', 'Conditioning', 'Speed', 'Recovery', 'Skills']
@@ -59,5 +63,5 @@ export function createInitialData(today = dateKey()): AppData {
     { title: 'Acceleration & ball work', category: 'Speed', minutes: 40, notes: 'Proposed pitch session. Prioritise movement quality; take full recovery between runs.', exercises: [exercise('Progressive warm-up', 1, '10 min · easy running, skips and build-ups', 'As needed'), exercise('Controlled accelerations', 4, '15 m · build speed progressively', '2 min'), exercise('Solo and hand-pass practice', 3, '3 min · both sides', '60 sec'), exercise('Easy cool-down', 1, '5 min walk', 'As needed')] },
     { title: 'Upper-body & trunk', category: 'Strength', minutes: 45, notes: 'Proposed strength session. Choose variations suited to your ability.', exercises: [exercise('Dynamic warm-up', 1, '5–8 min · shoulder and trunk mobility', 'As needed'), exercise('Push-up', 3, '6–10 reps · incline if needed', '90 sec'), exercise('Single-arm row', 3, '10 reps each side', '90 sec'), exercise('Dead bug', 3, '8 reps each side', '45 sec')] }
   ]
-  return { version: 2, recoveryEntries: [], programmes: [{ id: programmeId, name: 'Gaelic Football Performance', description: 'Build strength. Move faster. Be ready for the pitch.' }], activeProgrammeId: programmeId, sessions: templates.map((t, i) => ({ ...t, id: uid(), programmeId, date: addDays(today, [0, 1, 2, 4, 6][i]), proposed: true })), logs: [], profile: { name: '', sport: 'Gaelic football', position: '', weeklyTarget: 4, goals: [] }, theme: 'system' }
+  return { version: 3, performance: createPerformanceData(), recoveryEntries: [], programmes: [{ id: programmeId, name: 'Gaelic Football Performance', description: 'Build strength. Move faster. Be ready for the pitch.' }], activeProgrammeId: programmeId, sessions: templates.map((t, i) => ({ ...t, id: uid(), programmeId, date: addDays(today, [0, 1, 2, 4, 6][i]), proposed: true })), logs: [], profile: { name: '', sport: 'Gaelic football', position: '', weeklyTarget: 4, goals: [] }, theme: 'system' }
 }

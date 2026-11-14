@@ -1,46 +1,11 @@
-import { categories, migrateData, validDate, type AppData, type LegacyAppData } from './domain'
+import { categories, migrateData, type AppData, type StoredAppData } from './domain'
+import { BackupError, fail, object, text, number, boolean, choice, date, timestamp, list, id, records, type RecordValue } from './validation'
+import { validatePerformanceData } from './performance-validation'
+export { BackupError } from './validation'
 import { feet, pressures, skillAreas } from './skills-domain'
 import { availabilityOptions, bodyLocations, bodySides, symptomKinds } from './recovery-domain'
 
 export const MAX_BACKUP_BYTES = 25 * 1024 * 1024
-export class BackupError extends Error {}
-type RecordValue = Record<string, unknown>
-const fail = (path: string, reason: string): never => { throw new BackupError(`${path}: ${reason}`) }
-function object(value: unknown, path: string, required: string[], optional: string[] = []): RecordValue {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return fail(path, 'expected an object.')
-  const record = value as RecordValue
-  for (const key of required) if (!Object.hasOwn(record, key)) fail(`${path}.${key}`, 'is missing. Choose a complete exported backup.')
-  for (const key of Object.keys(record)) if (![...required, ...optional].includes(key)) fail(`${path}.${key}`, 'is not supported by this app version.')
-  return record
-}
-function text(value: unknown, path: string, max: number, required = false): asserts value is string {
-  if (typeof value !== 'string' || value.length > max || (required && !value.trim())) fail(path, `expected ${required ? 'non-empty ' : ''}text up to ${max} characters.`)
-}
-function number(value: unknown, path: string, min: number, max: number, integer = true): asserts value is number {
-  if (typeof value !== 'number' || !Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) fail(path, `expected ${integer ? 'a whole number' : 'a number'} from ${min} to ${max}.`)
-}
-function boolean(value: unknown, path: string) { if (typeof value !== 'boolean') fail(path, 'expected true or false.') }
-function choice(value: unknown, path: string, choices: readonly string[]) { if (typeof value !== 'string' || !choices.includes(value)) fail(path, 'contains an unsupported choice.') }
-function date(value: unknown, path: string) { if (typeof value !== 'string' || !validDate(value)) fail(path, 'expected a valid YYYY-MM-DD date.') }
-function timestamp(value: unknown, path: string) {
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString() !== value) fail(path, 'expected a valid UTC export/save timestamp.')
-}
-function list(value: unknown, path: string, max = 100000): unknown[] {
-  if (!Array.isArray(value) || value.length > max) return fail(path, `expected a list with at most ${max} records.`)
-  return value
-}
-const id = (value: unknown, path: string) => text(value, path, 200, true)
-function records(value: unknown, path: string, validate: (value: unknown, path: string) => void, max?: number, key = 'id') {
-  const items = list(value, path, max), ids = new Set<unknown>()
-  items.forEach((item, i) => {
-    const itemPath = `${path}[${i + 1}]`
-    validate(item, itemPath)
-    const identifier = (item as RecordValue)[key]
-    if (ids.has(identifier)) fail(itemPath, `duplicate ${key}.`)
-    ids.add(identifier)
-  })
-  return items as RecordValue[]
-}
 const drillFields = ['area', 'objective', 'successCriteria', 'foot', 'distance', 'angle', 'pressure']
 function drill(value: unknown, path: string, result = false) {
   const d = object(value, path, [...drillFields, ...(result ? ['id', 'exerciseId', 'attempts', 'successes'] : [])])
@@ -111,8 +76,8 @@ function recovery(value: unknown, path: string) {
 export function validateBackupData(value: unknown): AppData {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Backup', 'expected an exported JSON object.')
   const version = (value as RecordValue).version
-  if (version !== 1 && version !== 2) fail('Backup version', 'only versions 1 and 2 are supported. Update the app if this backup is newer.')
-  const data = object(value, 'Backup', ['version', 'programmes', 'activeProgrammeId', 'sessions', 'logs', 'profile', 'theme', ...(version === 2 ? ['recoveryEntries'] : [])])
+  if (version !== 1 && version !== 2 && version !== 3) return fail('Backup version', 'only versions 1, 2 and 3 are supported. Update the app if this backup is newer.')
+  const data = object(value, 'Backup', ['version', 'programmes', 'activeProgrammeId', 'sessions', 'logs', 'profile', 'theme', ...(version >= 2 ? ['recoveryEntries'] : []), ...(version === 3 ? ['performance'] : [])])
   const programmes = records(data.programmes, 'Programmes', (value, p) => {
     const item = object(value, p, ['id', 'name', 'description']); id(item.id, `${p}.id`); text(item.name, `${p}.name`, 100, true); text(item.description, `${p}.description`, 500)
   })
@@ -130,12 +95,13 @@ export function validateBackupData(value: unknown): AppData {
     const g = object(value, p, ['id', 'title', 'done']); id(g.id, `${p}.id`); text(g.title, `${p}.title`, 200, true); boolean(g.done, `${p}.done`)
   }, 20)
   choice(data.theme, 'Appearance preference', ['system', 'light', 'dark'])
-  if (version === 2) records(data.recoveryEntries, 'Recovery observations', recovery)
+  if (version >= 2) records(data.recoveryEntries, 'Recovery observations', recovery)
+  if (version === 3) validatePerformanceData(data.performance)
   // Detach the validated document: later mutation of the input cannot change the restored snapshot.
-  return migrateData(structuredClone(data) as unknown as AppData | LegacyAppData)
+  return migrateData(structuredClone(data) as unknown as StoredAppData)
 }
 
-export interface PreparedBackup { data: AppData; sourceVersion: 1 | 2; exportedAt: string }
+export interface PreparedBackup { data: AppData; sourceVersion: 1 | 2 | 3; exportedAt: string }
 export function parseBackup(contents: string): PreparedBackup {
   if (new TextEncoder().encode(contents).byteLength > MAX_BACKUP_BYTES) throw new BackupError('This backup exceeds the 25 MB import limit.')
   let value: unknown
@@ -143,9 +109,9 @@ export function parseBackup(contents: string): PreparedBackup {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail('Backup', 'expected an exported JSON object.')
   const { exportedAt, ...document } = value as RecordValue
   timestamp(exportedAt, 'Export date')
-  return { data: validateBackupData(document), sourceVersion: document.version as 1 | 2, exportedAt: exportedAt as string }
+  return { data: validateBackupData(document), sourceVersion: document.version as 1 | 2 | 3, exportedAt: exportedAt as string }
 }
 
 export function backupCounts(data: AppData): [string, number][] {
-  return [['Programmes', data.programmes.length], ['Planned / proposed sessions', data.sessions.length], ['Completed workouts', data.logs.length], ['Skills sessions planned', data.sessions.filter(s => s.category === 'Skills').length], ['Skills result blocks', data.logs.reduce((n, l) => n + (l.skillResults?.length || 0), 0)], ['Recovery observations', data.recoveryEntries.length], ['Illness observations', data.recoveryEntries.filter(e => e.illness).length], ['Symptoms recorded', data.recoveryEntries.reduce((n, e) => n + e.symptoms.length, 0)], ['Goals', data.profile.goals.length]]
+  return [['Programmes', data.programmes.length], ['Planned / proposed sessions', data.sessions.length], ['Completed workouts', data.logs.length], ['Skills sessions planned', data.sessions.filter(s => s.category === 'Skills').length], ['Skills result blocks', data.logs.reduce((n, l) => n + (l.skillResults?.length || 0), 0)], ['Recovery observations', data.recoveryEntries.length], ['Illness observations', data.recoveryEntries.filter(e => e.illness).length], ['Symptoms recorded', data.recoveryEntries.reduce((n, e) => n + e.symptoms.length, 0)], ['Goals', data.profile.goals.length], ['Test definitions', data.performance.definitions.length], ['Test results', data.performance.results.length], ['Matches', data.performance.matches.length], ['Match metric definitions', data.performance.matchMetrics.length]]
 }

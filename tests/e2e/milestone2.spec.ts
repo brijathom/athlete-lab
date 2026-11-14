@@ -1,3 +1,4 @@
+import { createPerformanceData } from '../../src/performance-domain'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { createInitialData, dateKey, type LegacyAppData } from '../../src/domain'
@@ -61,7 +62,7 @@ test('both-foot skills practice logs real attempts and persists separate perform
   await page.getByRole('button', { name: 'Export data', exact: true }).click()
   const download = await downloaded
   const exported = JSON.parse(await readFile((await download.path())!, 'utf8'))
-  expect(exported.version).toBe(2)
+  expect(exported.version).toBe(3)
   expect(exported.logs[0].skillResults.map((r: { foot: string }) => r.foot)).toEqual(['Left', 'Right'])
   expect(exported.logs[0].skillResults[0].attempts).toBe(10)
   expect(exported.recoveryEntries).toEqual([])
@@ -108,7 +109,7 @@ test('recovery symptoms, illness and missed training appear in the calendar and 
 })
 
 test('existing Milestone 1 athlete data migrates without loss or invented records', async ({ page }) => {
-  const { recoveryEntries: _, ...seed } = createInitialData()
+  const { recoveryEntries: _, performance: _performance, ...seed } = createInitialData()
   const exercise = seed.sessions[0].exercises[0]
   const legacy: LegacyAppData = { ...seed, version: 1, profile: { ...seed.profile, name: 'Existing athlete' }, logs: [{ id: 'existing-log', sessionId: seed.sessions[0].id, title: 'Existing gym workout', category: 'Strength', date: dateKey(), minutes: 42, rpe: 5, notes: 'Preserve this actual record.', exercises: [exercise], results: [{ exerciseId: exercise.id, set: 1, done: true, reps: '8', load: '12' }], savedAt: new Date().toISOString() }] }
   await page.goto('/connection-check.html')
@@ -138,7 +139,7 @@ test('existing Milestone 1 athlete data migrates without loss or invented record
     request.onsuccess = () => { const db = request.result, get = db.transaction('state').objectStore('state').get('app'); get.onsuccess = () => { db.close(); resolve(get.result) }; get.onerror = () => reject(get.error) }
     request.onerror = () => reject(request.error)
   }))
-  expect(stored.version).toBe(2)
+  expect(stored.version).toBe(3)
   expect(stored.logs).toEqual(legacy.logs)
   expect(stored.recoveryEntries).toEqual([])
 })

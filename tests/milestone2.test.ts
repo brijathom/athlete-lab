@@ -1,3 +1,4 @@
+import { createPerformanceData } from '../src/performance-domain'
 import { describe, expect, it } from 'vitest'
 import { createInitialData, migrateData, validateLog, validateSession, type AppData, type LegacyAppData, type WorkoutLog } from '../src/domain'
 import { blankSkill, comparisonKey, comparisonTrend, practiceObservations, skillAreas, summarisePractice, validateSkillResults, type SkillResult } from '../src/skills-domain'
@@ -11,10 +12,10 @@ const recovery: RecoveryEntry = { id: 'entry', date: '2020-01-01', availability:
 
 describe('non-destructive schema migration', () => {
   it('preserves all version 1 records and adds an empty recovery collection', () => {
-    const { recoveryEntries: _, ...initial } = createInitialData()
+    const { recoveryEntries: _, performance: _performance, ...initial } = createInitialData()
     const legacy: LegacyAppData = { ...initial, version: 1, logs: [{ ...log, skillResults: undefined }], profile: { ...initial.profile, name: 'Actual athlete' } }
     const migrated = migrateData(legacy)
-    expect(migrated).toEqual({ ...legacy, version: 2, recoveryEntries: [] })
+    expect(migrated).toEqual({ ...legacy, version: 3, recoveryEntries: [], performance: createPerformanceData() })
     expect(legacy.version).toBe(1)
     expect(migrateData(migrated)).toBe(migrated)
     expect(migrated.sessions).toEqual(legacy.sessions)

@@ -1,11 +1,14 @@
 import { createInitialData, type AppData } from '../../src/domain'
 import type { SkillDrill } from '../../src/skills-domain'
+import { matchRecord, testRecord } from './performance'
 
 // Synthetic fixtures only; never loaded into the application or a user's database.
 export function completeBackup(): AppData {
   const data = createInitialData('2025-04-01')
   data.profile = { name: 'Backup test athlete', sport: 'Gaelic football', position: 'Midfielder', weeklyTarget: 3, goals: [{ id: 'goal-1', title: 'Test goal', done: true }] }
   data.theme = 'dark'
+  data.performance.results = [testRecord()]
+  data.performance.matches = [matchRecord()]
   data.programmes.push({ id: 'second-programme', name: 'Test skills programme', description: 'Synthetic backup fixture' })
   data.activeProgrammeId = 'second-programme'
   const skill: SkillDrill = { area: 'Two-point shooting', objective: 'Test objective', successCriteria: 'Test criterion', foot: 'Left', distance: 45, angle: 'Central', pressure: 'Active opposition' }

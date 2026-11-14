@@ -1,4 +1,4 @@
-# Athlete Lab — Milestones 1, 1.1 and 2A
+# Athlete Lab — Milestones 1, 1.1, 2A and 2B
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
 
@@ -61,7 +61,7 @@ Open **Skills** or **Recovery** from the desktop sidebar or the shortcuts above 
 
 ### Persistence and limits
 
-The existing IndexedDB database and object store are retained. Document schema version 1 upgrades to version 2 by preserving all existing fields and adding an empty `recoveryEntries` array. Existing logs are not converted into skills results. No historical skills or recovery data is seeded. New data is included in JSON exports and remains available offline with the production app.
+The existing IndexedDB database and object store are retained. Milestone 2A introduced document schema version 2 with an empty `recoveryEntries` array for version 1 data; Milestone 2B now upgrades both versions to schema 3 as described below. Existing logs are not converted into skills results. No historical skills or recovery data is seeded. New data is included in JSON exports and remains available offline with the production app.
 
 This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. Local-only storage, manual backup and the existing single-tab editing limitation remain. JSON backup import is available; cloud sync is not included.
 
@@ -84,14 +84,66 @@ Restoration **replaces all saved data for this browser and origin**; it does not
 
 ### Compatibility and integrity
 
-- Original Milestone 1 exports (document version **1**) and Milestone 2A exports (version **2**) are supported. Version 1 is upgraded in memory by adding an empty recovery history; existing records are preserved without inventing results. New exports remain version 2. The IndexedDB database and object-store version are unchanged.
-- Profile, goals, programmes, planned/proposed sessions, completed workouts, historical exercise/drill prescriptions, set results, skills results, recovery symptoms, illness/missed-training observations and application preferences (theme, target and active programme) are included.
+- Original Milestone 1 exports (document version **1**), Milestone 2A exports (**2**) and current Milestone 2B exports (**3**) are supported. Versions 1 and 2 are upgraded in memory to version 3, preserving all existing records, adding optional performance catalogue definitions and empty test/match histories. Version 1 also gains an empty recovery history. New exports use version 3. The IndexedDB database and object-store version are unchanged.
+- Profile, goals, programmes, planned/proposed sessions, completed workouts, historical exercise/drill prescriptions, set results, skills results, recovery symptoms, illness/missed-training observations, test definitions/results/protocols, match records/shot details/metric definitions/scoring rules, and application preferences (theme, target, active programme and performance focus) are included.
 - Validation checks the entire document, required fields, types, ranges, calendar dates, save/export timestamps, unique IDs and relationships before any write. Unknown versions/fields, missing sections, invalid results and broken references are rejected with the affected field or record identified. Use the original file or a newer app if the message indicates an unsupported format; do not remove records just to bypass a validation error.
 - Historical workout and missed-session snapshots are independent of current plans. Deleted sessions and changes to prescriptions do not invalidate or rewrite history. Exercise IDs need only be unique inside their own prescription. Record dates are preserved even if the importing device clock differs.
 - Replacement is a single IndexedDB read/write transaction. The app waits for transaction completion before showing success or changing its displayed data. A quota error or transaction abort retains the previous complete document; the dialog reports failure and permits a confirmed retry. No database clearing or partial imports occur.
 - Single-tab editing remains the supported workflow. This feature does not add cross-tab conflict reconciliation, automatic backups, merging, cloud sync, encryption or recovery of a backup file that is itself corrupt/incomplete.
 
-Automated coverage includes complete version 2 round-trips, older exports, malformed/incomplete/incompatible data, duplicate and dangling references, cancelled previews, explicit confirmation, reload/export integrity, quota failures and transaction aborts after a successful write request. Browser tests run on desktop Chromium and iPhone-sized Chromium/WebKit using isolated synthetic records, never your actual browser data.
+Automated coverage includes complete version 3 round-trips, original version 1/2 exports, malformed/incomplete/incompatible data, duplicate and dangling references, cancelled previews, explicit confirmation, reload/export integrity, quota failures and transaction aborts after a successful write request. Browser tests run on desktop Chromium and iPhone-sized Chromium/WebKit using isolated synthetic records, never your actual browser data.
+
+## Performance Testing and Match Analysis (Milestone 2B)
+
+Open **Performance** from the desktop sidebar or the module shortcuts on iPhone. The original five mobile tabs are retained. Today shows your selected performance measures, while Calendar and Activity show recorded tests and matches alongside existing training. No test results, match statistics or health measurements are seeded.
+
+### Record and compare tests
+
+1. In **Performance → Definitions**, enable the tests you want. The optional catalogue includes 5/10/20/30 m and flying 10 m sprints, countermovement/standing broad jumps, bench press, high-bar squat, trap-bar deadlift, power clean, pull-ups, Yo-Yo IR1/IR2, a running time trial, repeated-sprint mean time and four technical accuracy tests. Create additional definitions for other sports, distances or protocols.
+2. Define the unit, direction, calculation, standard protocol, operational definition and details needed for comparison. Best takes the minimum or maximum as selected; Mean averages individual attempts; Manual stores your representative value; Accuracy uses successes / attempts × 100. Time is entered in **seconds**, jumps in **centimetres**, Yo-Yo running distance in **metres**, load in **kg**, pull-ups in whole **reps**, and accuracy in **%**. No unit conversion, stage-to-distance or estimated 1RM calculation occurs.
+3. Choose **Record test**. Enter the actual date, result/individual attempts, method, equipment and protocol details. Required details are marked with an asterisk. For strength, specify the repetition criterion and technique; loads at different rep/technique criteria are not interchangeable. Record only attempts actually performed. Links to a programme, training session or profile goal are optional and do not create a workout log.
+4. In **Testing**, select a test and optional date/programme filters. Charts, tables, measured personal bests and latest-minus-first changes are grouped by the saved operational definition, protocol, unit, calculation, timing/measurement method, equipment, recorded conditions and quality. Non-accuracy tests also separate differing attempt counts. Electronic and handheld times, Yo-Yo levels, jump methods, run-in distances and exercise techniques are never pooled when recorded differently. Same-day repeats do not create a longitudinal change estimate.
+5. Edit or delete results from Testing, Calendar or Activity (deletion is available in Testing). Disabling a test preserves history. Editing a definition changes future entries; existing results retain their own snapshots. Estimated and subjective results remain visible without a measured personal best.
+
+Charts show actual sample sizes and use the observed axis range, with a matching result table. They do not establish a statistically meaningful improvement or interpolate missing measurements. Consistent labels are important: free-text protocols and unrecorded conditions can conceal differences. The app cannot verify the equipment, technique or accuracy of self-entered measurements.
+
+### Record a match quickly
+
+Choose **Record match** in Performance or on a Calendar date. Date and opponent are sufficient. Position, minutes, outcome, team, competition, final score, conditions and tactical notes are optional. Add further detail later by editing the record. Missing numbers remain unknown; explicit zero is retained as zero.
+
+- Identify the observation source (self-report, coach, match video or another described source) and whether statistics were recorded or estimated. Qualitative leadership, decision-making, tactical, positional and overall reflections have no numerical player rating.
+- Expand **Scoring** for one-point, two-point and goal attempts/conversions. Conversions cannot exceed known attempts. If only score counts are known, attempts may remain blank. A full points total requires all three score counts; otherwise the app reports known points and clearly marks the full total unknown.
+- Alternatively choose **Individual shots**. Record the intended shot type, actual outcome and optional foot, distance, angle, pressure and set/open play. Shot type is user-selected; the app does not adjudicate the two-point rule from distance. A goal attempt over the bar is one goal attempt, zero goal conversions and one awarded point, not an extra one-point attempt. Unknown outcomes are not misses.
+- Declare whether the shot log is a complete match record or a partial sample. Partial samples do not produce full-match scoring totals; omitted shot types remain unknown. Switching between shots and aggregate entry explicitly clears the alternate source after confirmation. Backups containing both sources are rejected.
+- Attacking, defensive and general contributions are optional expandable sections. Every metric exposes its operational definition and evidence classification. Definitions can be edited/created/disabled in the catalogue and are saved independently with each match. Some counts overlap (for example chances/assists and turnovers/interceptions); the app never sums them into a composite impact rating.
+- Global scoring weights are configurable in Definitions (default 1/2/3). New matches copy them; historical matches retain their original rules. Match outcome and final score are entered explicitly, not inferred from the athlete's own scoring.
+
+### Review performance with context
+
+**Matches** provides position/date/programme filters, conversion rates by shot type, scoring trends, passing accuracy, a selected contribution's trend, and position comparisons. Analytics separate recording sources, estimated/recorded statistics and scoring-rule versions. Contribution trends also separate operational-definition versions. Rates use known attempts as their denominator, with actual counts and exclusions shown. Per-70-minute contribution figures use only known positive minutes, and aggregate counts are weighted by their recorded minutes; they are not arbitrary player ratings. Partial shot samples describe recorded shots only.
+
+**Overview** reuses existing skill-practice records and like-for-like drill groups without duplicating them. Choose up to six focus tests and four match measures in Definitions, and optionally show skills/training context. Existing athlete goals remain accessible and can be linked to individual records. Test and match details show the preceding 28 days of logged workout count, minutes, minutes × RPE and recovery observations. These are descriptive context across all programmes, not evidence that training or symptoms caused a performance change. Missing check-ins are unknown. The existing Today dashboard remains the primary weekly consistency view.
+
+The app does not schedule or prescribe maximal testing, provide medical clearance, diagnose symptoms, predict selection, assign elite rankings, invent expected goals, or calculate injury-risk percentages. Recent recovery observations are surfaced in Overview without creating a readiness score. A good test result does not establish that training is medically appropriate.
+
+### Evidence and references
+
+All user-created tests and match metrics default to **Coaching-defined observation**. **Exploratory personal metric** is also available. Research-supported physical-test and match-indicator classifications require a supporting HTTP(S) reference, but the app cannot evaluate the validity of a user-provided citation. Default match/technical metrics and unreferenced protocols are labelled coaching-defined, not automatically validated.
+
+Selected catalogue references were checked during implementation:
+
+- [Anthropometric and Physical Fitness Profile of Adolescent Inter-County Ladies’ Gaelic Football Players](https://www.mdpi.com/2673-7051/3/4/44): context for 5 m/20 m sprint testing; population and protocol limitations apply.
+- [Strength and Power Testing of Athletes: A Multicenter Study of Test-Retest Reliability](https://pubmed.ncbi.nlm.nih.gov/35477896/): context for 30 m sprint and countermovement-jump assessment, not proof for every measurement method.
+- [Yo-Yo Intermittent Recovery Test Performance in Subelite Gaelic Football Players](https://pubmed.ncbi.nlm.nih.gov/26982971/) and [The yo-yo test: reliability and association with a 20-m shuttle run and VO(2max)](https://pubmed.ncbi.nlm.nih.gov/19114746/): protocol/population context for IR1/IR2, which remain separate tests. No VO2max estimate is derived.
+- [GAA Official Guide, April 2026](https://learning.gaa.ie/sites/default/files/2026-04/GAA%20Rule%20Book%20April%202026.pdf): reference for the default scoring weights. Record the actual rules applicable to your competition; no rule adjudication is automated.
+
+These references do not validate individual selection predictions, medical clearance, or the app's coaching-defined match statistics. Bibliographic metadata remains deliberately lightweight.
+
+### Persistence, backups and limits
+
+The IndexedDB database/object store stays at version 1; the single stored document migrates from schema 1/2 to **3** in one write, retaining existing fields. An upgrade write failure leaves the old document in place and displays the existing storage-retry screen. All new entities, snapshots, links and focus preferences are included in the existing validated, previewed, atomic JSON restoration workflow. Original version 1 and 2 exports remain importable and receive empty test/match histories. Offline use remains supported with the production service worker.
+
+This milestone supports manual entry, not live GPS, timing-gate integrations, automatic video analysis or real-time team scorekeeping. Match score entry is the athlete's contribution, not a team event ledger. Comparison groups deliberately favour consistency over merging similar-looking descriptions; no measurement-error threshold or smallest worthwhile change is inferred. There is no cloud sync, automatic backup or cross-tab reconciliation. Existing one-tab editing and 25 MB backup limits remain. Use the Definitions catalogue to disable unused measures rather than deleting their history.
 
 ## Install and test offline
 
@@ -109,6 +161,9 @@ For iPhone installation, host the `dist/` directory at an HTTPS origin (or use a
 - `src/domain.ts`: versioned entities, validation, local calendar-date functions and the clearly labelled proposed Gaelic Football Performance starter programme.
 - `src/skills-domain.ts`, `src/skills-ui.tsx`, `src/SkillFields.tsx`: structured drills, explicit attempt logging, weighted metrics and like-for-like comparisons, reusing sessions and workout logs.
 - `src/recovery-domain.ts`, `src/recovery-ui.tsx`: optional recovery records, validation, symptom history and calendar/dashboard views.
+- `src/performance-domain.ts`, `src/performance-catalogue.ts`, `src/performance-validation.ts`: versioned tests/matches, protocols, scoring, evidence and conservative comparisons.
+- `src/performance-ui.tsx`, `src/PerformanceForms.tsx`: focused dashboard, logging, definitions and responsive charts/history.
+- `src/validation.ts`: shared complete-document validation primitives.
 - `src/backup.ts`, `src/BackupRestore.tsx`: complete backup validation, compatible migration, preview and explicit replacement confirmation.
 - `src/repository.ts`: `AthleteRepository` interface and IndexedDB adapter. Replace or extend the adapter for a future API/cloud sync implementation. The UI only commits state after a successful write; failures remain visible.
 - `src/App.tsx`: application navigation, Today, weekly calendar, programme selection, history, profile/goals and app installation/update handling.

@@ -1,3 +1,4 @@
+import { createPerformanceData } from '../../src/performance-domain'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import type { AppData } from '../../src/domain'
@@ -72,7 +73,7 @@ test('invalid and incompatible files never write; changing files resets confirma
   const dialog = await openImport(page), before = await stored(page)
   for (const [contents, message] of [
     ['{bad', 'not valid JSON'],
-    [encodeBackup({ ...completeBackup(), version: 99 }), 'only versions 1 and 2'],
+    [encodeBackup({ ...completeBackup(), version: 99 }), 'only versions 1, 2 and 3'],
     [encodeBackup({ ...completeBackup(), recoveryEntries: undefined }), 'recoveryEntries'],
     [encodeBackup({ ...completeBackup(), activeProgrammeId: 'missing' }), 'included programme'],
   ]) {
@@ -93,7 +94,7 @@ test('invalid and incompatible files never write; changing files resets confirma
 })
 
 test('version 1 exports preview their upgrade and restore history without invented records', async ({ page }) => {
-  const { recoveryEntries: _, ...seed } = completeBackup()
+  const { recoveryEntries: _, performance: _performance, ...seed } = completeBackup()
   seed.logs = seed.logs.filter(l => !l.skillResults)
   seed.sessions = seed.sessions.filter(s => s.category !== 'Skills')
   const legacy = { ...seed, version: 1 }
@@ -104,7 +105,7 @@ test('version 1 exports preview their upgrade and restore history without invent
   await dialog.getByLabel('I understand this replaces all data on this device.').check()
   await dialog.getByRole('button', { name: 'Restore backup', exact: true }).click()
   await expect(dialog).not.toBeVisible()
-  expect(await stored(page)).toEqual({ ...legacy, version: 2, recoveryEntries: [] })
+  expect(await stored(page)).toEqual({ ...legacy, version: 3, recoveryEntries: [], performance: createPerformanceData() })
 })
 
 test('an aborted restore keeps the previous data and allows a confirmed retry', async ({ page }) => {
