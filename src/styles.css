@@ -78,3 +78,17 @@ details > summary { cursor: pointer; padding: 12px 0; min-height: 44px; font-wei
 .cloud-counts > div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
 .cloud-counts dd { font-weight: 600; }
 .cloud-email { overflow-wrap: anywhere; }
+.coach-page { overflow-wrap: anywhere; }
+.coach-page fieldset { border: 1px solid var(--border, #ccd4cc); border-radius: 12px; padding: 16px; min-width: 0; }
+.coach-page legend { padding: 0 6px; font-weight: 600; }
+.coach-page textarea, .coach-page select { font-size: 16px; }
+.coach-preview { min-height: 280px; font-family: ui-monospace, monospace; }
+.coach-turn { border-bottom: 1px solid var(--border, #ccd4cc); padding-bottom: 24px; }
+.coach-question { color: var(--accent, #38735a); }
+.coach-facts { padding-left: 20px; list-style: disc; }
+.coach-facts li { margin-top: 8px; }
+.coach-history-row { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
+.coach-history-row button:first-child { text-align: left; }
+.proposal-comparison { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; }
+.proposal-comparison > div { min-width: 0; padding: 16px; border: 1px solid var(--border, #ccd4cc); border-radius: 12px; }
+@media (min-width: 900px) { .proposal-comparison { grid-template-columns: repeat(2,minmax(0,1fr)); } }

@@ -1,10 +1,60 @@
-# Athlete Lab — Milestones 1, 1.1, 2A, 2B and 2C
+# Athlete Lab
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
 
+## Phase 3B: authenticated AI coaching
+
+AI Coach is an independent OpenAI API experience. It does not inherit ChatGPT conversations or subscription access. Local training, backups and Coaching Context exports continue working without AI, an account or internet access.
+
+### Server setup (required for live AI)
+
+1. Apply `supabase/migrations/202611140002_coaching_chat.sql`, then `supabase/migrations/202611140003_coaching_proposals.sql` in your existing Supabase project's SQL Editor, or through the CLI migration workflow. These add separate RLS-protected conversations, turns, proposals and content-free usage accounting; they do not rewrite training records or IndexedDB data. Stage 3B.1 was separately verified before Stage 3B.2; its recovery checkpoint is `.tools/checkpoints/stage-3b1-verified.zip`.
+2. In Supabase **Edge Functions → Secrets**, set `OPENAI_API_KEY` from your OpenAI API project. Keep the credential exclusively in Supabase secrets. Configure API billing and a project spending budget in OpenAI; ChatGPT subscription access is not an API credential. Never place the key in `.env.local`, `VITE_*`, chat messages, browser code or version control.
+3. Set server secrets `OPENAI_MODEL=gpt-6.1-sol` and `COACH_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173,http://192.168.0.11:5173` for local testing. Replace/add the actual HTTPS app origin when appropriate. Model access is verified using OpenAI's model endpoint before generation; unsupported or inaccessible configurations return a clear error. The model is configurable without a browser rebuild. [Official model documentation](https://developers.openai.com/api/docs/models/gpt-6.1-sol), [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
+4. With the Supabase CLI installed, run `supabase login`, `npm run build:edge`, then `supabase functions deploy coach --project-ref iquwuihqhzhzlvbizmdk`. The checked-in function configuration disables only the gateway's legacy JWT check; the handler verifies every request with Supabase Auth `getUser` before any data access. The CLI needs your Supabase account authorisation; a publishable browser key cannot deploy functions.
+5. Sign in to Athlete Lab, link/synchronise your records, then open **AI Coach**. Review sharing controls and the authorised context preview, enter a question and explicitly confirm sharing. Do not claim live AI verification until a configured project returns a successful answer.
+
+### Data sharing, retention and controls
+
+The server loads training through the authenticated user's RLS-scoped client and reuses the deterministic context generator. It never trusts client-supplied athlete data or user IDs. The preview comes from cloud records; fresh authorised records are loaded before each answer. Unsynchronised edits are excluded, and the UI requires a connected account without pending changes or unresolved conflicts.
+
+Sharing supports 7/14/28/90 days of recent history, 7/14/28 upcoming days, and independent module selections. Names, symptoms, illness, recovery observations and free-text notes are separate opt-ins, off by default. Your question, goals, session titles and other selected text can themselves contain sensitive information; review before sending. Prior turns are replayed only when their sharing scope exactly matches the current settings. A narrower scope never automatically includes earlier health-sharing turns. At most six prior turns within the selected recent-history period and an 8 KB history budget are sent, with their original timestamps.
+
+Answers separate recorded facts, interpretations and unknown information. Athlete notes/imported records are treated as untrusted data in server instructions; no tools, executable data or automatic training writes are available to the advice endpoint. OpenAI requests use the Responses API with strict structured output and `store:false`. Context snapshots are not retained in conversation tables; questions/answers and scope selections remain until conversation deletion. OpenAI's own API processing/retention policies still apply; `store:false` is not a promise of zero provider retention.
+
+Conversation history supports reopening, deletion and a separate JSON export. Deleting a conversation removes its turns. Content-free rate-limit entries older than seven days are pruned when the next coaching request begins. Training backups remain version 3 and do not contain conversations; coaching exports are separate archival JSON, not training-restoration backups. Conversation history requires connectivity and is not cached as sensitive offline content.
+
+Defaults are six requests/hour and twenty/day per account, a 500,000-token conservative daily reservation, and shared limits of 100 requests/3,000,000 reserved tokens/day. Reservations are enforced atomically in PostgreSQL before a paid call and retained even after timeouts/deletion, preventing quota bypass. UTF-8 request/context/history sizes and output tokens are capped. `COACH_*` server secrets in `supabase/functions/.env.example` configure limits; Review OpenAI billing and budget alerts separately; application token/request limits do not promise a fixed monetary cap. Failed/unknown in-flight requests use stable request IDs to prevent automatic duplicate calls. Conversation length is capped at 100 turns; start another conversation afterward.
+
+### Stage 3B.2: review and approve programming
+
+Select **Request a structured training proposal** before sending a question. The server supplies only eligible upcoming, uncompleted session targets from the selected active programme. The model may return a proposal or explain why more information is needed. Drafts support session additions, prescription/drill changes, date changes and removal of planned sessions. Planned skills and testing use the existing session/exercise models; no actual attempts, test results or completed workouts are created. Programme metadata, clinical observations, profiles and historical workouts are outside the proposal write surface.
+
+Every proposal is validated against the existing complete-document and session validators before it is saved/displayed. The preview shows **Before** and **After approval**, with exercise sets, prescriptions, rest and skill details. Nothing appears in training until you check the separate approval confirmation and choose **Approve and save changes**. **Reject proposal** changes only proposal status. Existing notes excluded from sharing are preserved when updating their sessions/exercises.
+
+Drafts expire after 24 hours and capture programme, preference and session revisions. Approval independently verifies the signed user, current data and session completion state, then uses a PostgreSQL transaction with the same account advisory lock as Phase 3A sync. Any stale revision or new workout completion rejects the whole change set. An already-decided proposal returns its status without applying twice. Approved rows enter the existing cloud records/revision protocol and the client pulls them through the existing IndexedDB sync repository. Pending local changes/conflicts must be resolved before UI approval. Deleting a conversation deletes its proposal history; already-approved planned sessions remain part of training.
+
+### Live verification
+
+After migrations, secrets and deployment, use the two dedicated confirmed test users already configured in the ignored root `.env.local`:
+
+```sh
+npm run test:coach:live
+```
+
+This checks the deployed auth boundary, authenticated access, cross-account RLS reads and denied direct conversation creation without calling OpenAI. To explicitly authorise **two paid Responses requests**, conversation persistence/isolation, proposal generation and approval verification:
+
+```sh
+npm run test:coach:live -- --allow-paid
+```
+
+Use only dedicated test accounts. If account A has no live cloud records, the paid check temporarily seeds clearly labelled proposed plans with **zero actual workouts, tests or health records**. It requests an additional session, refuses to approve any model-proposed edit/removal of existing sessions, verifies explicit confirmation and duplicate approval protection, then deletes its conversation and newly created plans. Protocol tombstones and content-free quota entries remain. The script reads no OpenAI credential and does not print account credentials or athlete records. No live AI verification is claimed until this command succeeds against configured services. Physical iPhone testing remains manual.
+
+Replies are buffered until their structured response validates; token streaming is not implemented. Routine tests use deterministic mocks and embedded PostgreSQL; they do not make paid API calls. Server sources are in `server/`, shared pure models in `src/coach-domain.ts`, and `npm run build:edge` creates the deployable Deno wrapper plus bundled `handler.js`. The frontend build never imports server code or API secrets.
+
 ## Phase 3A: optional Supabase accounts and cloud synchronisation
 
-The local Phase 3A implementation adds email/password accounts, email recovery, durable per-account IndexedDB branches, explicit first-connection migration, offline change tracking, revision-checked cloud synchronisation, deletion markers and conflict review. Live Supabase verification requires the setup below. Phases 3B (direct AI) and 3C (production deployment) have not been started; Coaching Context remains a local export tool.
+The local Phase 3A implementation adds email/password accounts, email recovery, durable per-account IndexedDB branches, explicit first-connection migration, offline change tracking, revision-checked cloud synchronisation, deletion markers and conflict review. Live Supabase verification requires the setup below. Phase 3B adds the separate authenticated API coaching service described above; Phase 3C production deployment has not started. Coaching Context remains a local export tool.
 
 ### Minimal hosted setup
 
