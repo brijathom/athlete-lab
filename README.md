@@ -1,4 +1,4 @@
-# Athlete Lab — Milestones 1 and 2A
+# Athlete Lab — Milestones 1, 1.1 and 2A
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
 
@@ -35,7 +35,7 @@ The Playwright suite starts the production preview on port 4173 and tests Chromi
 4. After training, open a session → **Log this workout**. Tick performed sets, optionally enter actual reps/load, and supply actual duration and effort. Unchecked sets remain unperformed; partial sessions are supported. Enter time/distance results in workout notes.
 5. Open Activity to view, correct or delete logs. Refresh and confirm that the data persists.
 6. Set your profile, weekly workout target and goals. Use **Save profile & goals** to commit those edits. Try the System, Light and Dark themes.
-7. Export a JSON backup from Activity or Profile. It includes programmes, prescriptions, logs, profile, goals, theme and schema version. Export restoration/import is not part of this milestone.
+7. Export a JSON backup from Activity or Profile. It includes programmes, prescriptions, logs, profile, goals, theme and schema version. Restore that export from Profile → Import backup (JSON). See the instructions below.
 
 ## Football Skills and Recovery (Milestone 2A)
 
@@ -63,7 +63,35 @@ Open **Skills** or **Recovery** from the desktop sidebar or the shortcuts above 
 
 The existing IndexedDB database and object store are retained. Document schema version 1 upgrades to version 2 by preserving all existing fields and adding an empty `recoveryEntries` array. Existing logs are not converted into skills results. No historical skills or recovery data is seeded. New data is included in JSON exports and remains available offline with the production app.
 
-This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. Local-only storage, manual export and the existing single-tab editing limitation remain; backup import and cloud sync are not included.
+This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. Local-only storage, manual backup and the existing single-tab editing limitation remain. JSON backup import is available; cloud sync is not included.
+
+## Reliable backup and restoration (Milestone 1.1)
+
+### Export a backup
+
+Save any open forms first. In **Profile → Appearance & your data**, tap **Export all data (JSON)**, or use **Activity → Export data**. Save the downloaded `.json` file somewhere you can find again, such as Files on iPhone. Keep regular copies outside this browser: clearing site data, moving to another browser or changing the address/port does not move your local records. Exports contain personal training and recovery observations, so store and share them accordingly.
+
+### Restore a backup
+
+1. Open Athlete Lab at the address where you want the data restored. Close other Athlete Lab tabs and finish or discard open edits.
+2. Go to **Profile → Import backup (JSON)** and choose the original exported file (up to 25 MB). On iPhone, select it from Files.
+3. Review the export date, version, athlete, active programme, appearance, target and record counts. Backup and current-device counts appear side by side. Reading the file and displaying this preview do not change any stored records.
+4. Use **Export current data** if you want a copy of the records that are about to be replaced.
+5. Check **I understand this replaces all data on this device**, then tap **Restore backup**. Cancel or close the dialog to leave your saved data unchanged. Choosing another file resets confirmation.
+6. After success, the app opens Today with the restored data and appearance. Reload to verify persistence. You can export again to verify the restored records.
+
+Restoration **replaces all saved data for this browser and origin**; it does not merge histories. There is no undo, so keep the previous export if you may need to return to it. No files are uploaded and there is no backend or cloud storage. Unsaved edits and the app's installed/offline status are not part of a data backup.
+
+### Compatibility and integrity
+
+- Original Milestone 1 exports (document version **1**) and Milestone 2A exports (version **2**) are supported. Version 1 is upgraded in memory by adding an empty recovery history; existing records are preserved without inventing results. New exports remain version 2. The IndexedDB database and object-store version are unchanged.
+- Profile, goals, programmes, planned/proposed sessions, completed workouts, historical exercise/drill prescriptions, set results, skills results, recovery symptoms, illness/missed-training observations and application preferences (theme, target and active programme) are included.
+- Validation checks the entire document, required fields, types, ranges, calendar dates, save/export timestamps, unique IDs and relationships before any write. Unknown versions/fields, missing sections, invalid results and broken references are rejected with the affected field or record identified. Use the original file or a newer app if the message indicates an unsupported format; do not remove records just to bypass a validation error.
+- Historical workout and missed-session snapshots are independent of current plans. Deleted sessions and changes to prescriptions do not invalidate or rewrite history. Exercise IDs need only be unique inside their own prescription. Record dates are preserved even if the importing device clock differs.
+- Replacement is a single IndexedDB read/write transaction. The app waits for transaction completion before showing success or changing its displayed data. A quota error or transaction abort retains the previous complete document; the dialog reports failure and permits a confirmed retry. No database clearing or partial imports occur.
+- Single-tab editing remains the supported workflow. This feature does not add cross-tab conflict reconciliation, automatic backups, merging, cloud sync, encryption or recovery of a backup file that is itself corrupt/incomplete.
+
+Automated coverage includes complete version 2 round-trips, older exports, malformed/incomplete/incompatible data, duplicate and dangling references, cancelled previews, explicit confirmation, reload/export integrity, quota failures and transaction aborts after a successful write request. Browser tests run on desktop Chromium and iPhone-sized Chromium/WebKit using isolated synthetic records, never your actual browser data.
 
 ## Install and test offline
 
@@ -81,6 +109,7 @@ For iPhone installation, host the `dist/` directory at an HTTPS origin (or use a
 - `src/domain.ts`: versioned entities, validation, local calendar-date functions and the clearly labelled proposed Gaelic Football Performance starter programme.
 - `src/skills-domain.ts`, `src/skills-ui.tsx`, `src/SkillFields.tsx`: structured drills, explicit attempt logging, weighted metrics and like-for-like comparisons, reusing sessions and workout logs.
 - `src/recovery-domain.ts`, `src/recovery-ui.tsx`: optional recovery records, validation, symptom history and calendar/dashboard views.
+- `src/backup.ts`, `src/BackupRestore.tsx`: complete backup validation, compatible migration, preview and explicit replacement confirmation.
 - `src/repository.ts`: `AthleteRepository` interface and IndexedDB adapter. Replace or extend the adapter for a future API/cloud sync implementation. The UI only commits state after a successful write; failures remain visible.
 - `src/App.tsx`: application navigation, Today, weekly calendar, programme selection, history, profile/goals and app installation/update handling.
 - `src/components.tsx`: accessible dialog, prescription editor and explicit workout logger.

@@ -4,7 +4,7 @@ import { SkillFields } from './SkillFields'
 import { blankSkill } from './skills-domain'
 import { categories, dateKey, uid, validateLog, validateSession, type Session, type WorkoutLog } from './domain'
 
-export function Modal({ title, children, close }: { title: string; children: ReactNode; close: () => void }) {
+export function Modal({ title, children, close, closeDisabled = false }: { title: string; children: ReactNode; close: () => void; closeDisabled?: boolean }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const previous = document.activeElement as HTMLElement
@@ -23,7 +23,7 @@ export function Modal({ title, children, close }: { title: string; children: Rea
     document.addEventListener('keydown', key)
     return () => { document.body.style.overflow = overflow; document.removeEventListener('keydown', key); previous?.focus() }
   }, [close])
-  return <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}><header className="modal-header"><h2>{title}</h2><button className="icon-button" onClick={close} aria-label="Close dialog"><X size={22}/></button></header>{children}</div></div>
+  return <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} ref={ref}><header className="modal-header"><h2>{title}</h2><button className="icon-button" onClick={close} disabled={closeDisabled} aria-label="Close dialog"><X size={22}/></button></header>{children}</div></div>
 }
 export function Badge({ children, category }: { children: ReactNode; category?: string }) { return <span className={`badge ${category?.toLowerCase() || ''}`}>{children}</span> }
 export function SessionCard({ session, complete, onClick }: { session: Session; complete: boolean; onClick: () => void }) {
