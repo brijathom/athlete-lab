@@ -4,8 +4,8 @@ import type { AppData } from './domain'
 import { backupCounts, MAX_BACKUP_BYTES, parseBackup, type PreparedBackup } from './backup'
 import { exportData } from './repository'
 
-export function BackupRestore({ current, restore, close, busy }: {
-  current: AppData; restore: (data: AppData) => Promise<void>; close: () => void; busy: boolean
+export function BackupRestore({ current, restore, close, busy, cloudConnected = false }: {
+  current: AppData; restore: (data: AppData) => Promise<void>; close: () => void; busy: boolean; cloudConnected?: boolean
 }) {
   const [backup, setBackup] = useState<PreparedBackup | null>(null), [filename, setFilename] = useState('')
   const [error, setError] = useState(''), [reading, setReading] = useState(false), [confirmed, setConfirmed] = useState(false)
@@ -44,7 +44,7 @@ export function BackupRestore({ current, restore, close, busy }: {
       {backup.sourceVersion === 1 && <p className="notice">This older backup will be upgraded. It contains no recovery records; an empty recovery history will be restored.</p>}
       {backup.sourceVersion < 3 && <p className="notice">This backup predates Performance Testing and Match Analysis. Test and match histories will be empty; optional catalogue definitions will be added.</p>}
       <p className="small muted">Workout and drill prescriptions, results, profile, goals and preferences are preserved. Proposed sessions remain proposals.</p>
-      <div className="notice">Restoration replaces all saved data at this browser address. It does not merge records and cannot be undone here. Export your current data first if you want to keep it. Close other Athlete Lab tabs before restoring.</div>
+      <div className="notice">Restoration replaces the currently open dataset. It does not merge records and cannot be undone here. Export your current data first if you want to keep it. Close other Athlete Lab tabs before restoring. {cloudConnected && <strong>This account is connected: restored additions, changes and deletions will also synchronise to the cloud and other devices. Other accounts and the original local dataset are preserved.</strong>}</div>
       <button className="button secondary" disabled={busy} onClick={() => exportData(current)}><ArrowDownToLine size={18}/>Export current data</button>
       <label className="backup-confirm"><input type="checkbox" checked={confirmed} disabled={busy} onChange={e => setConfirmed(e.target.checked)}/><span>I understand this replaces all data on this device.</span></label>
     </section>}

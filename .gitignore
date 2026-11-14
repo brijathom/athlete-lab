@@ -3,6 +3,8 @@ dist/
 test-results/
 playwright-report/
 .env.local
+.env.*.local
+supabase/.temp/
 *.log
 .tools/
 .npm-cache/

@@ -1,6 +1,46 @@
-# Athlete Lab — Milestones 1, 1.1, 2A and 2B
+# Athlete Lab — Milestones 1, 1.1, 2A, 2B and 2C
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
+
+## Phase 3A: optional Supabase accounts and cloud synchronisation
+
+The local Phase 3A implementation adds email/password accounts, email recovery, durable per-account IndexedDB branches, explicit first-connection migration, offline change tracking, revision-checked cloud synchronisation, deletion markers and conflict review. Live Supabase verification requires the setup below. Phases 3B (direct AI) and 3C (production deployment) have not been started; Coaching Context remains a local export tool.
+
+### Minimal hosted setup
+
+1. Create a Supabase project. In its SQL Editor, execute `supabase/migrations/202611140001_cloud_sync.sql` **once**, or apply it through the Supabase CLI migration workflow. Keep subsequent schema changes in new migration files.
+2. In Authentication → URL Configuration, set Site URL to your app origin and add its `/` URL to the allowed redirects. For local desktop development use `http://localhost:5173/`. Use HTTPS for iPhone authentication redirects and recovery; a LAN HTTP preview is not a production auth/PWA origin. Enable email confirmation and configure a production SMTP sender before release.
+3. Add these **public** values to `.env.local`, leaving any existing app-name setting intact:
+
+   ```dotenv
+   VITE_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_YOUR_PUBLIC_KEY
+   ```
+
+   A legacy Supabase `anon` key is also accepted. Service-role keys, secret keys, database passwords and OpenAI keys must never be put in `VITE_*`, the browser bundle or version control. Vite embeds its public configuration at build time; restart/rebuild after changes.
+4. Open Profile → Account & cloud sync. Create an account, confirm its email, then sign in. Download a backup, review the local counts, check the explicit linking confirmation, and choose **Upload local records** or **Open cloud records**. Existing cloud overlaps pause for review; nothing is silently overwritten.
+5. Test two devices with the same account. Use **Sync now / retry** for an immediate sync; otherwise the app retries every 15 seconds while open, on focus and when connectivity returns. No browser background-sync API is required. Keep the app open until pending changes clear before clearing storage.
+
+For a local Supabase stack with Docker and the Supabase CLI, `supabase start` and `supabase db reset` apply the checked-in configuration/migration; use the URL/public key printed by the CLI. `db reset` is for the disposable local test stack, not an existing hosted project.
+
+### Data integrity and privacy
+
+- Cloud schema version 1 stores one programme, session, workout, recovery observation, test definition/result, match or match metric per row. Profile/goals, settings and scoring rules are small singleton records. Exercise prescriptions, skill results and historical definitions remain embedded in their owning historical records. All Milestone 1–2C persisted data is covered; 2C intentionally has no saved coaching summaries/settings.
+- PostgreSQL RLS isolates rows by authenticated owner. The client has SELECT permission only; an authenticated RPC derives the owner from the signed session, serialises account exchanges and checks expected record revisions before atomically writing a batch. No owner ID supplied by a caller is accepted. Tombstones remain indefinitely, so an old device cannot silently recreate deleted rows.
+- IndexedDB database/store versions and backup document version 3 remain unchanged. The existing `app` key is untouched on account connection; `account:USER_ID` and `sync:USER_ID` keys store each account's snapshot and durable outbox together in one transaction. Signing out returns to the original local dataset. Another account receives a separate branch. Browser caches are not encrypted; local data remains on the device after sign-out.
+- Three-way merges combine independent edits. Overlapping edits/deletions require explicit choices with both versions visible. A relationship conflict never replaces the current working dataset with an invalid graph. Back up before choosing the complete cloud version. Concurrent tab saves are checked against the displayed snapshot and rejected if stale; unsaved forms are not a durable draft store.
+- Sync responses contain a consistent full account snapshot, while writes contain only changed records. This prioritises correctness for individual athletes; incremental pagination/change feeds and large team datasets are future work. Exchanges are capped at 100,000 changes and 25 MB. No telemetry or AI transmission is added.
+- Backups remain portable v1/v2/v3 JSON exports of the **currently open dataset**, without auth tokens or sync metadata. Restoring while connected replaces that account's local data and queues the resulting cloud additions/changes/deletions. Restoring while signed out changes only the original local dataset. Other account branches are preserved.
+
+### Verification and remaining live checks
+
+`npm test` runs the real migration on embedded PostgreSQL (PGlite), including forced RLS, two distinct authenticated account claims, denied direct writes, atomic rejection, tombstones and malformed requests. Sync tests cover all entity mappings, durable offline edits, two-device merges/conflicts, account switching, in-flight changes, backups and failure recovery. These database tests are not a claim that hosted Supabase Auth has been tested.
+
+`npm run test:e2e` builds a separate `.tools/browser-build` with an explicitly fake Supabase URL/key. Cloud browser tests intercept its requests with deterministic mocks and block service workers so WebKit cannot bypass those mocks; they verify durable offline writes and subsequent online reloads. The existing PWA tests separately verify service-worker-controlled offline reloads. Tests run across desktop Chromium, mobile Chromium and mobile WebKit; the normal `dist` build and your browser's real data are not used. A physical iPhone is still a manual check.
+
+After configuring a real project, create **two dedicated confirmed test accounts**. Set `ATHLETE_TEST_EMAIL_A`, `ATHLETE_TEST_PASSWORD_A`, `ATHLETE_TEST_EMAIL_B`, `ATHLETE_TEST_PASSWORD_B` in your local shell or ignored `.env.local`, alongside the public configuration. Run `npm run test:cloud:live` (Node 22.12+). The script checks actual sign-in, two-account RPC/RLS isolation, denied direct writes, atomic stale batches, deletion propagation and anonymous access. It removes its live test programme, retaining its protocol deletion marker. It never prints credentials. Separately verify email confirmation/recovery links, session refresh/expiry, two physical devices, offline reconnection and HTTPS redirects before declaring Phase 3A live-ready.
+
+Operating costs at this phase are Supabase database/storage, authentication and email delivery; limits depend on the selected plan. No paid AI calls are made. Phase 3B will require separate OpenAI API billing, and Phase 3C will require hosting/deployment configuration. No hosted service or deployment has been created automatically.
 
 ## Run locally
 
@@ -25,7 +65,7 @@ npx playwright install chromium webkit
 npm run test:e2e
 ```
 
-The Playwright suite starts the production preview on port 4173 and tests Chromium at iPhone and desktop sizes plus WebKit at an iPhone size, including offline service-worker behaviour. WebKit testing is not a physical iPhone or Safari certification. Startup tests also cover blocked app scripts and disabled JavaScript.
+The Playwright suite builds an isolated production preview in `.tools/browser-build` and starts it on port 4173 and tests Chromium at iPhone and desktop sizes plus WebKit at an iPhone size, including offline service-worker behaviour. WebKit testing is not a physical iPhone or Safari certification. Startup tests also cover blocked app scripts and disabled JavaScript.
 
 ## Test the experience
 
@@ -63,7 +103,7 @@ Open **Skills** or **Recovery** from the desktop sidebar or the shortcuts above 
 
 The existing IndexedDB database and object store are retained. Milestone 2A introduced document schema version 2 with an empty `recoveryEntries` array for version 1 data; Milestone 2B now upgrades both versions to schema 3 as described below. Existing logs are not converted into skills results. No historical skills or recovery data is seeded. New data is included in JSON exports and remains available offline with the production app.
 
-This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. Local-only storage, manual backup and the existing single-tab editing limitation remain. JSON backup import is available; cloud sync is not included.
+This is a self-reporting tool: success criteria and angle descriptions are user-defined, and unrecorded conditions limit comparability. The app does not validate technique, adjudicate points, diagnose symptoms, prescribe rehabilitation, forecast readiness or estimate injury risk. A session still has one workout log; duplicate it for another practice occurrence. JSON backup import and optional account synchronisation are available; see Phase 3A above for setup and conflict handling.
 
 ## Reliable backup and restoration (Milestone 1.1)
 
@@ -80,7 +120,7 @@ Save any open forms first. In **Profile → Appearance & your data**, tap **Expo
 5. Check **I understand this replaces all data on this device**, then tap **Restore backup**. Cancel or close the dialog to leave your saved data unchanged. Choosing another file resets confirmation.
 6. After success, the app opens Today with the restored data and appearance. Reload to verify persistence. You can export again to verify the restored records.
 
-Restoration **replaces all saved data for this browser and origin**; it does not merge histories. There is no undo, so keep the previous export if you may need to return to it. No files are uploaded and there is no backend or cloud storage. Unsaved edits and the app's installed/offline status are not part of a data backup.
+Restoration **replaces the currently open local or account dataset**; it does not merge histories. There is no undo, so keep the previous export if you may need to return to it. Backup files are processed locally. For a connected account, restored changes are queued for cloud synchronisation. Unsaved edits and the app's installed/offline status are not part of a data backup.
 
 ### Compatibility and integrity
 
@@ -143,7 +183,25 @@ These references do not validate individual selection predictions, medical clear
 
 The IndexedDB database/object store stays at version 1; the single stored document migrates from schema 1/2 to **3** in one write, retaining existing fields. An upgrade write failure leaves the old document in place and displays the existing storage-retry screen. All new entities, snapshots, links and focus preferences are included in the existing validated, previewed, atomic JSON restoration workflow. Original version 1 and 2 exports remain importable and receive empty test/match histories. Offline use remains supported with the production service worker.
 
-This milestone supports manual entry, not live GPS, timing-gate integrations, automatic video analysis or real-time team scorekeeping. Match score entry is the athlete's contribution, not a team event ledger. Comparison groups deliberately favour consistency over merging similar-looking descriptions; no measurement-error threshold or smallest worthwhile change is inferred. There is no cloud sync, automatic backup or cross-tab reconciliation. Existing one-tab editing and 25 MB backup limits remain. Use the Definitions catalogue to disable unused measures rather than deleting their history.
+This milestone supports manual entry, not live GPS, timing-gate integrations, automatic video analysis or real-time team scorekeeping. Match score entry is the athlete's contribution, not a team event ledger. Comparison groups deliberately favour consistency over merging similar-looking descriptions; no measurement-error threshold or smallest worthwhile change is inferred. Optional cloud sync is described in Phase 3A above. The 25 MB backup limit remains; export separate backups before destructive changes. Use the Definitions catalogue to disable unused measures rather than deleting their history.
+
+## Coaching Context (Milestone 2C)
+
+Open **Coaching Context** from the desktop navigation or iPhone module shortcuts. This feature creates a local context export for you to submit to ChatGPT separately. It does not run an AI model, call an API, upload records, or require a connector, account or paid service.
+
+1. Choose **Quick Context** (14 recent days including today, 7 upcoming days, latest focus tests) or **Detailed Context** (90 recent days, 28 upcoming days, all tests and additional detail).
+2. Optionally select/write a coaching question. Expand **Date ranges and sections** to customise inclusive reporting periods and sections. Switching modes resets date ranges while preserving section choices and explicit privacy choices.
+3. Review the privacy controls. Athlete name, injury/symptom history, illness, other recovery/availability observations, and free-text notes/reflections all start **off** whenever this page is opened. Health categories are independent; notes within a selected health category also require the free-text-notes option. Titles, goals, protocol descriptions, questions and additional context can contain personal information too, so review the entire preview.
+4. Read the **Markdown preview**, then tap **Copy context** and paste it into ChatGPT yourself. If clipboard access is unavailable or denied (common on plain HTTP iPhone LAN addresses), use **Select preview text**, then the selection menu's **Copy**, or Ctrl+C / Cmd+C on desktop.
+5. Alternatively download Markdown or structured JSON. The Markdown download matches the preview; JSON contains the same selected facts with structured values. Downloads may open your browser's save/share flow on iPhone. Coaching JSON is **not a full backup** and cannot replace the separate backup/restore workflow.
+
+The generator uses saved application data, including historical workout prescriptions, actual sets/results, practice attempts and denominators, protocol-specific test groups, source-labelled match statistics and saved scoring rules. Proposed/planned sessions remain distinct from completed logs. Unlogged sessions are not automatically called missed; only explicitly included missed-training observations report that. Missing values remain unknown rather than zero. Recovery observations are dated reports, without inferred diagnosis, resolution or clearance. Test comparisons include compatible history through the selected recent end date, even when older than the recent start date; Quick mode prioritises dashboard focus tests when results exist. Exercise names/results describe exposure; no running/cycling distances are invented from prescriptions.
+
+The existing data model does not separately store future match fixtures, confirmed future rest days, commitments, facilities, equipment availability, potential positions, training preferences, programme blocks or rescheduling history. These are labelled unknown rather than inferred. Add relevant information in **Additional athlete context** for this export; it is explicitly user-provided and is not saved to the profile or history. Unscheduled days are not treated as rest days.
+
+Generation, preview, copying and downloads work offline with the installed production app. Pasting/submitting to ChatGPT is a separate action outside Athlete Lab. Context options and summaries are held only while the page is open; there is no export archive, second training history or extra copy of health data in IndexedDB. No database schema or backup format change was needed.
+
+`src/coaching-context.ts` provides deterministic, UI-independent structured generation and Markdown rendering. It accepts a saved snapshot plus explicit options/timestamp, with an optional adapter using the existing repository's `load` interface. `src/CoachingContextPage.tsx` supplies configuration and preview; `src/coaching-export.ts` handles clipboard and local downloads. Automated coverage includes date boundaries, plans versus completions, missing/zero values, calculations, protocol separation, active programme, privacy categories, empty records, Unicode, both formats, clipboard fallback and offline use, alongside existing regression tests.
 
 ## Install and test offline
 
@@ -165,7 +223,7 @@ For iPhone installation, host the `dist/` directory at an HTTPS origin (or use a
 - `src/performance-ui.tsx`, `src/PerformanceForms.tsx`: focused dashboard, logging, definitions and responsive charts/history.
 - `src/validation.ts`: shared complete-document validation primitives.
 - `src/backup.ts`, `src/BackupRestore.tsx`: complete backup validation, compatible migration, preview and explicit replacement confirmation.
-- `src/repository.ts`: `AthleteRepository` interface and IndexedDB adapter. Replace or extend the adapter for a future API/cloud sync implementation. The UI only commits state after a successful write; failures remain visible.
+- `src/repository.ts`: `AthleteRepository` interface and IndexedDB adapter. Extends the existing store with isolated account snapshots and atomic durable change tracking. The UI only commits state after a successful write; failures remain visible.
 - `src/App.tsx`: application navigation, Today, weekly calendar, programme selection, history, profile/goals and app installation/update handling.
 - `src/components.tsx`: accessible dialog, prescription editor and explicit workout logger.
 - `src/styles.css`: responsive design tokens, Tailwind layers, dark mode, safe-area spacing and reduced-motion handling.
@@ -173,7 +231,7 @@ For iPhone installation, host the `dist/` directory at an HTTPS origin (or use a
 
 New installations contain **no completed training, performance tests or health measurements**. A weekly target is a configurable planning preference, not a measured result. Logs snapshot the prescription at completion, so later plan edits or session deletion do not rewrite history. A session has at most one workout log; duplicate the session for another occurrence. Weekly completion counts include all programmes, while the calendar displays the active programme.
 
-Local browser data is not an account or a cloud backup. Data is specific to the browser, device and origin (including port). Clearing site data removes it. Export regularly before clearing data or switching origins. Use one tab for editing; cross-device and multi-tab conflict reconciliation are future sync work. Unsaved form edits are not persisted. Typography uses local system fonts so startup does not depend on an external font service.
+Unlinked local browser data is not a cloud backup. Data is specific to the browser, device and origin (including port). Clearing site data removes it. Export regularly before clearing data or switching origins. Connected accounts reconcile multi-device changes; stale tab saves are rejected. Use one tab for editing forms. Unsaved form edits are not persisted. Typography uses local system fonts so startup does not depend on an external font service.
 
 If Safari does not open the development app, try the production preview (`npm run build`, then `npm run preview`) at the printed network address on port 4173. This avoids development module loading and hot reload. If startup fails, the page displays a recovery message with local connection details instead of remaining blank; those details contain the origin and browser version, not your training records.
 
