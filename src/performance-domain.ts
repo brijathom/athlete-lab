@@ -1,3 +1,4 @@
+import {trainingHistory} from './training-activities'
 import { addDays, dateKey, uid, type AppData } from './domain'
 import { defaultTestDefinitions, defaultMatchMetrics } from './performance-catalogue'
 import type { Foot, Pressure } from './skills-domain'
@@ -41,6 +42,7 @@ export const metricGroups = ['Attacking', 'Defensive', 'General'] as const
 export interface MatchMetricDefinition { id: string; name: string; group: typeof metricGroups[number]; enabled: boolean; evidence: Evidence }
 export const reflectionLabels = { position: 'Position-specific observations', decisions: 'Decision-making', tactical: 'Tactical intelligence', leadership: 'Leadership and communication', overall: 'Overall reflections' }
 export interface MatchRecord {
+  fixtureId?:string;rpe?:number;participation?:'Played'|'Did not play'
   id: string; date: string; opponent: string; competition: string; team: string; position: string; minutes: number | null
   result: 'Unknown' | 'Win' | 'Draw' | 'Loss'; finalScore: string; conditions: string; tacticalNotes: string
   source: typeof observationSources[number]; sourceDetails: string; quality: 'Recorded' | 'Estimated'
@@ -131,8 +133,8 @@ export function comparableMatchMetric(matches: MatchRecord[], definition: MatchM
 }
 export function trainingContext(data: AppData, date: string) {
   const start = addDays(date, -28)
-  const logs = data.logs.filter(l => l.date >= start && l.date < date)
+  const logs = trainingHistory(data).filter(l => l.kind!=='test'&&l.participated&&l.date >= start && l.date < date)
   const recovery = data.recoveryEntries.filter(r => r.date >= start && r.date < date)
-  return { start, end: addDays(date, -1), workouts: logs.length, minutes: logs.reduce((n, l) => n + l.minutes, 0), load: logs.reduce((n, l) => n + l.minutes * l.rpe, 0), recovery, illnessDays: new Set(recovery.filter(r => r.illness).map(r => r.date)).size, modifiedDays: new Set(recovery.filter(r => r.availability === 'Modified training' || r.availability === 'Unavailable').map(r => r.date)).size }
+  return { start, end: addDays(date, -1), workouts: logs.length, minutes: logs.reduce((n, l) => n + (l.minutes??0), 0), load: logs.reduce((n, l) => n + (l.load??0), 0), recovery, illnessDays: new Set(recovery.filter(r => r.illness).map(r => r.date)).size, modifiedDays: new Set(recovery.filter(r => r.availability === 'Modified training' || r.availability === 'Unavailable').map(r => r.date)).size }
 }
 export const formatValue = (value: number | null, digits = 2) => value === null ? 'Not recorded' : new Intl.NumberFormat('en-IE', { maximumFractionDigits: digits }).format(value)

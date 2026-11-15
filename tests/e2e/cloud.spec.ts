@@ -1,3 +1,4 @@
+import {navigate} from './navigation'
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
 
 // WebKit service-worker requests bypass Playwright's HTTP route mocks after reload.
@@ -28,7 +29,7 @@ async function mockCloud(context: BrowserContext) {
   return { records, counts }
 }
 async function profile(page: Page) {
-  await page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Mobile navigation' : 'Main navigation', exact: true }).getByRole('button', { name: 'Profile', exact: true }).click()
+  await navigate(page,'Profile')
   await expect(page.getByRole('heading', { name: 'Account & cloud sync' })).toBeVisible()
 }
 async function signIn(page: Page) {

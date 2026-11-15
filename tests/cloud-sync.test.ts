@@ -30,7 +30,7 @@ describe('record mapping and sync protocol', () => {
     expect(restored.logs).toEqual(expect.arrayContaining(original.logs))
     expect(restored.recoveryEntries).toEqual(original.recoveryEntries)
     expect(restored.performance.matches).toEqual(original.performance.matches)
-    expect(original.version).toBe(3)
+    expect(original.version).toBe(4)
     expect(same({ b: 2, a: 1 }, { a: 1, b: 2 })).toBe(true)
   })
   it('rejects incompatible responses and invalid graphs without touching local records', () => {

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { CoachError, validateSharing } from '../src/coach-domain'
+import { IntegrationError, validateSharing } from '../src/integration-domain'
 import { disabledToolGrant, type ToolDraft, type ToolGrant, type ToolPrincipal, type ToolStore } from '../src/athlete-tools'
 import { checkedExchange } from '../src/cloud-sync'
 import { parseRemote } from '../src/sync-domain'
@@ -7,8 +7,8 @@ import { parseRemote } from '../src/sync-domain'
 function check(error: { message: string } | null) {
   if (!error) return
   const errors: [string, number, string][] = [['NOT_FOUND',404,'This draft is unavailable.'], ['REQUEST_REUSED',409,'This idempotency key was already used with different input.'], ['STALE_DRAFT',409,'Records changed or this draft expired. Create a fresh draft.'], ['HISTORY_PROTECTED',409,'A completion log already exists. Historical records cannot be replaced.'], ['APPROVAL_REQUIRED',403,'The athlete must explicitly approve inside Athlete Lab.'], ['AUTH_REQUIRED',403,'Use the signed-in Athlete Lab approval interface.'], ['PERMISSION_REQUIRED',403,'Enable or renew tool permissions in Athlete Lab.'], ['TOOL_LIMIT',429,'The daily draft limit has been reached.']]
-  for (const [code, status, message] of errors) if (error.message.includes(code)) throw new CoachError(status,message,code.toLowerCase())
-  throw new CoachError(503,'Athlete tools storage is unavailable. Check migrations and try again.','storage_unavailable')
+  for (const [code, status, message] of errors) if (error.message.includes(code)) throw new IntegrationError(status,message,code.toLowerCase())
+  throw new IntegrationError(503,'Athlete tools storage is unavailable. Check migrations and try again.','storage_unavailable')
 }
 export function athleteToolStore(url: string, key: string, serviceKey: string) {
   const options = { auth: { persistSession: false, autoRefreshToken: false } }
@@ -35,11 +35,11 @@ export function athleteToolStore(url: string, key: string, serviceKey: string) {
     async prior(actor,key,fingerprint) {
       const result = await admin.from('athlete_tool_drafts').select('payload,status,fingerprint').eq('owner_id',actor.owner).eq('idempotency_key',key).maybeSingle(); check(result.error)
       if (!result.data) return null
-      if (result.data.fingerprint !== fingerprint) throw new CoachError(409,'This idempotency key was already used with different input.','request_reused')
+      if (result.data.fingerprint !== fingerprint) throw new IntegrationError(409,'This idempotency key was already used with different input.','request_reused')
       return draftValue(result.data)
     },
     async stage(actor,key,fingerprint,draft) { const result = await admin.rpc('athlete_tool_stage',{ actor: actor.owner, request_key: key, request_fingerprint: fingerprint, draft }); check(result.error); return result.data as ToolDraft },
-    async draft(token,actor,id) { const result = await (actor.clientId ? admin : client(token)).from('athlete_tool_drafts').select('payload,status').eq('owner_id',actor.owner).eq('id',id).maybeSingle(); check(result.error); if (!result.data) throw new CoachError(404,'This draft is unavailable.'); return draftValue(result.data) },
+    async draft(token,actor,id) { const result = await (actor.clientId ? admin : client(token)).from('athlete_tool_drafts').select('payload,status').eq('owner_id',actor.owner).eq('id',id).maybeSingle(); check(result.error); if (!result.data) throw new IntegrationError(404,'This draft is unavailable.'); return draftValue(result.data) },
   }
   return {
     ...store,

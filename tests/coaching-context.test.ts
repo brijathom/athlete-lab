@@ -87,7 +87,7 @@ describe('deterministic coaching context', () => {
     const data = createInitialData('2025-04-02'), result = generate(data)
     for (const key of ['training', 'testing', 'matches', 'skills'] as ContextSection[]) expect(section(result, key).records).toEqual([])
     expect(section(result, 'programme').records[1].facts.Status).toContain('Proposed')
-    expect(coachingMarkdown(result)).toContain('Not separately recorded')
+    expect(coachingMarkdown(result)).toContain('Unknown / not recorded')
     expect(result.privacy).toEqual({ identity: false, symptoms: false, illness: false, otherRecovery: false, freeTextNotes: false })
   })
   it('includes only selected sections and preserves Unicode and special characters in both formats', () => {

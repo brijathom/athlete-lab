@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { completeBackup } from './fixtures/backup'
-import { prepareProposal, proposalCandidate, proposalTargets, readProposal, type RawProposal } from '../src/coach-proposals'
+import { prepareProposal, proposalCandidate, proposalTargets, readProposal, type RawProposal } from '../src/programme-proposals'
 import { fromRecords, toRecords } from '../src/sync-domain'
 
 const today = '2025-04-01', now = `${today}T12:00:00Z`

@@ -1,3 +1,4 @@
+import {navigate} from './navigation'
 import { test, expect, type Page } from '@playwright/test'
 import { createInitialData, dateKey, type AppData } from '../../src/domain'
 import { testRecord } from '../fixtures/performance'
@@ -5,7 +6,7 @@ import { testRecord } from '../fixtures/performance'
 const coreNav = (page: Page) => page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Mobile navigation' : 'Main navigation', exact: true })
 async function performance(page: Page, tab = 'Overview') {
   const nav = page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Skills and recovery' : 'Main navigation', exact: true })
-  await nav.getByRole('button', { name: 'Performance', exact: true }).click()
+  await navigate(page,'Performance')
   await page.getByRole('navigation', { name: 'Performance sections' }).getByRole('button', { name: tab, exact: true }).click()
 }
 async function stored(page: Page): Promise<AppData> {
@@ -60,7 +61,7 @@ test('create a custom test, record actual attempts and preserve its original pro
   await dialog.getByRole('button', { name: 'Save test definition', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   expect((await stored(page)).performance.results[0]).toEqual(saved)
-  await coreNav(page).getByRole('button', { name: 'Calendar', exact: true }).click()
+  await navigate(page,'Calendar')
   await expect(page.locator('.calendar-day.selected .test-dot')).toBeVisible()
   await page.getByRole('button', { name: /Custom acceleration · 2.6 s/ }).click()
   await expect(dialog.getByRole('textbox', { name: 'Protocol used', exact: true })).toHaveValue('Fixed 15 m sprint with standing start.')
@@ -68,8 +69,8 @@ test('create a custom test, record actual attempts and preserve its original pro
   await dialog.getByRole('button', { name: 'Update test result', exact: true }).click()
   await expect(dialog).not.toBeVisible()
   await page.reload()
-  await coreNav(page).getByRole('button', { name: 'Activity', exact: true }).click()
-  await expect(page.getByRole('button', { name: /Custom acceleration · 2.4 s/ })).toBeVisible()
+  await navigate(page,'Activity')
+  await expect(page.getByRole('heading', { name: 'Custom acceleration', exact:true })).toBeVisible(); await expect(page.getByText('2.4 s · Measured', {exact:true})).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
@@ -136,7 +137,7 @@ test('a fast basic match keeps unknown stats, then accepts detailed scoring, con
   await expect(page.getByText('Passing accuracy: 80%', { exact: true })).toBeVisible()
   await page.getByLabel('Playing position filter').selectOption('wing-back')
   await page.screenshot({ path: test.info().outputPath('match-analysis.png'), fullPage: true })
-  await coreNav(page).getByRole('button', { name: 'Calendar', exact: true }).click()
+  await navigate(page,'Calendar')
   await expect(page.locator('.calendar-day.selected .match-dot')).toBeVisible()
   await expect(page.getByRole('button', { name: /vs Test opposition/ })).toBeVisible()
   await page.reload()

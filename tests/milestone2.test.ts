@@ -15,7 +15,7 @@ describe('non-destructive schema migration', () => {
     const { recoveryEntries: _, performance: _performance, ...initial } = createInitialData()
     const legacy: LegacyAppData = { ...initial, version: 1, logs: [{ ...log, skillResults: undefined }], profile: { ...initial.profile, name: 'Actual athlete' } }
     const migrated = migrateData(legacy)
-    expect(migrated).toEqual({ ...legacy, version: 3, recoveryEntries: [], performance: createPerformanceData() })
+    expect(migrated).toEqual({ ...legacy, version: 4, recoveryEntries: [], performance: createPerformanceData() })
     expect(legacy.version).toBe(1)
     expect(migrateData(migrated)).toBe(migrated)
     expect(migrated.sessions).toEqual(legacy.sessions)

@@ -9,7 +9,7 @@ describe('complete backup validation and compatibility', () => {
   it('round-trips every field, preserves snapshots and deleted-plan references, and detaches the data', () => {
     const source = completeBackup(), before = structuredClone(source)
     const parsed = parseBackup('\uFEFF' + encodeBackup(source))
-    expect(parsed).toEqual({ data: before, sourceVersion: 3, exportedAt: '2025-04-02T10:00:00.000Z' })
+    expect(parsed).toEqual({ data: before, sourceVersion: 4, exportedAt: '2025-04-02T10:00:00.000Z' })
     expect(source).toEqual(before)
     const copy = validateBackupData(source)
     source.profile.name = 'Changed after validation'
@@ -24,7 +24,7 @@ describe('complete backup validation and compatibility', () => {
     const old = { ...data, version: 1 }
     const parsed = parseBackup(encodeBackup(old))
     expect(parsed.sourceVersion).toBe(1)
-    expect(parsed.data).toEqual({ ...old, version: 3, recoveryEntries: [], performance: createPerformanceData() })
+    expect(parsed.data).toEqual({ ...old, version: 4, recoveryEntries: [], performance: createPerformanceData() })
     expect(old.version).toBe(1)
   })
   it.each(['', '{', 'null', '[]', '42', '"text"'])('rejects malformed or non-object JSON: %s', contents => {
@@ -34,7 +34,7 @@ describe('complete backup validation and compatibility', () => {
     expect(() => parseBackup(' '.repeat(MAX_BACKUP_BYTES + 1))).toThrow('25 MB')
   })
   it.each([
-    ['future version', (d: any) => { d.version = 4 }, /version/],
+    ['future version', (d: any) => { d.version = 5 }, /version/],
     ['missing version', (d: any) => { delete d.version }, /version/],
     ['missing recovery records', (d: any) => { delete d.recoveryEntries }, /recoveryEntries/],
     ['missing results', (d: any) => { delete d.logs[0].results }, /results/],
@@ -76,7 +76,7 @@ describe('complete backup validation and compatibility', () => {
   it('requires export metadata and rejects unknown fields instead of silently dropping data', () => {
     expect(() => parseBackup(JSON.stringify(completeBackup()))).toThrow('Export date')
     expect(() => parseBackup(encodeBackup({ ...completeBackup(), futureRecords: [] }))).toThrow('not supported')
-    expect(() => parseBackup(encodeBackup(completeBackup()).replace('"version":3', '"__proto__":{},"version":3'))).toThrow('not supported')
+    expect(() => parseBackup(encodeBackup(completeBackup()).replace('"version":4', '"__proto__":{},"version":4'))).toThrow('not supported')
   })
   it('permits exercise IDs reused in different sessions and preserves dates ahead of a device clock', () => {
     const data = completeBackup()

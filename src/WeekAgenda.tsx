@@ -1,0 +1,6 @@
+import {addDays,formatDate,type AppData,type Session} from './domain'
+import {SessionCard} from './components'
+import {isCompleted,sessionStatus} from './training-activities'
+export function WeekAgenda({data,start,sessions,open}:{data:AppData;start:string;sessions:Session[];open:(s:Session)=>void}){
+ return <div className="week-agenda">{Array.from({length:7},(_,i)=>{const day=addDays(start,i),planned=sessions.filter(s=>s.date===day).sort((a,b)=>(a.schedule?.startTime||'').localeCompare(b.schedule?.startTime||'')),matches=data.performance.matches.filter(m=>m.date===day&&!m.fixtureId),tests=data.performance.results.filter(r=>r.date===day);return <section className="agenda-day" key={day}><h2>{formatDate(day,{weekday:'short',day:'numeric',month:'short'})}</h2><div className="session-list">{planned.map(s=><SessionCard key={s.id} session={s} complete={isCompleted(data,s.id)} status={sessionStatus(data,s)} onClick={()=>open(s)}/>)}{matches.map(m=><p className="badge match" key={m.id}>Match recorded · vs {m.opponent}</p>)}{tests.map(r=><p className="badge testing" key={r.id}>Test recorded · {r.definition.name}</p>)}{!planned.length&&!matches.length&&!tests.length&&<p className="small muted">Nothing scheduled</p>}</div></section>})}</div>
+}

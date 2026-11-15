@@ -25,7 +25,7 @@ export function toRecords(data: AppData): RecordMap {
   list('programme', data.programmes); list('session', data.sessions); list('workout', data.logs); list('recovery', data.recoveryEntries)
   list('testDefinition', data.performance.definitions); list('testResult', data.performance.results); list('match', data.performance.matches); list('matchMetric', data.performance.matchMetrics)
   add('profile', 'singleton', data.profile)
-  add('preferences', 'singleton', { activeProgrammeId: data.activeProgrammeId, theme: data.theme, performance: data.performance.preferences })
+  add('preferences', 'singleton', { activeProgrammeId: data.activeProgrammeId, theme: data.theme, performance: data.performance.preferences,...(data.imports?{imports:data.imports}:{}) })
   add('scoringRules', 'singleton', data.performance.scoringRules)
   return records
 }
@@ -33,8 +33,8 @@ export function fromRecords(records: RecordMap): AppData {
   const rows = Object.values(records).filter(r => r.payload !== null)
   const list = (kind: RecordKind) => rows.filter(r => r.kind === kind).sort((a, b) => a.id.localeCompare(b.id)).map(r => r.payload)
   const one = (kind: RecordKind) => records[`${kind}:singleton`]?.payload
-  const preferences = one('preferences') as { activeProgrammeId?: string; theme?: string; performance?: unknown } | null | undefined
-  return validateBackupData({ version: 3, programmes: list('programme'), sessions: list('session'), logs: list('workout'), recoveryEntries: list('recovery'), profile: one('profile'), activeProgrammeId: preferences?.activeProgrammeId, theme: preferences?.theme, performance: { definitions: list('testDefinition'), results: list('testResult'), matches: list('match'), matchMetrics: list('matchMetric'), preferences: preferences?.performance, scoringRules: one('scoringRules') } })
+  const preferences = one('preferences') as { activeProgrammeId?: string; theme?: string; performance?: unknown;imports?:unknown } | null | undefined
+  return validateBackupData({ version: 4, programmes: list('programme'), sessions: list('session'), logs: list('workout'), recoveryEntries: list('recovery'), profile: one('profile'), activeProgrammeId: preferences?.activeProgrammeId, theme: preferences?.theme,...(preferences?.imports?{imports:preferences.imports}:{}), performance: { definitions: list('testDefinition'), results: list('testResult'), matches: list('match'), matchMetrics: list('matchMetric'), preferences: preferences?.performance, scoringRules: one('scoringRules') } })
 }
 export function parseRemote(value: unknown): RecordMap {
   if (!Array.isArray(value) || value.length > 100000) throw new Error('The cloud response is incompatible. Local data has been kept.')

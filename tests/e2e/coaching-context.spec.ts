@@ -1,10 +1,11 @@
+import {navigate} from './navigation'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
 import { completeBackup } from '../fixtures/backup'
 
 async function openCoaching(page: Page) {
   const nav = page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Skills and recovery' : 'Main navigation', exact: true })
-  await nav.getByRole('button', { name: 'Coaching Context', exact: true }).click()
+  await navigate(page,'Coaching Context')
   await expect(page.getByRole('heading', { name: 'Coaching Context', exact: true })).toBeVisible()
 }
 test('preview, privacy controls, Unicode question, clipboard and both downloads use the same stored facts', async ({ page }) => {
@@ -59,7 +60,7 @@ test('preview, privacy controls, Unicode question, clipboard and both downloads 
   expect(await page.evaluate(() => (window as Window & { copiedContext?: string }).copiedContext)).toBe(text)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   const nav = page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Mobile navigation' : 'Main navigation', exact: true })
-  await nav.getByRole('button', { name: 'Today', exact: true }).click()
+  await navigate(page,'Today')
   await openCoaching(page)
   await expect(page.getByLabel('Include injury and symptom history', { exact: true })).not.toBeChecked()
   await expect(preview).not.toHaveValue(/PRIVATE /)

@@ -1,0 +1,299 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "idempotencyKey",
+    "title",
+    "changes"
+  ],
+  "properties": {
+    "format": {
+      "const": "athlete-lab-programme"
+    },
+    "version": {
+      "const": 1
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9_-]{8,100}$"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "programme": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "expectedFingerprint": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "endDate": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "changes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 180,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation"
+        ],
+        "description": "add: session; update: targetId, expectedFingerprint, session; reschedule: targetId, expectedFingerprint, date. repeatUntil is allowed only on new team training.",
+        "properties": {
+          "operation": {
+            "enum": [
+              "add",
+              "update",
+              "reschedule"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "expectedFingerprint": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "repeatUntil": {
+            "type": "string",
+            "format": "date"
+          },
+          "session": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "title",
+              "date",
+              "category",
+              "minutes",
+              "exercises"
+            ],
+            "properties": {
+              "title": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string",
+                "format": "date"
+              },
+              "category": {
+                "enum": [
+                  "Strength",
+                  "Power",
+                  "Speed",
+                  "Conditioning",
+                  "Skills",
+                  "Tactical",
+                  "Recovery",
+                  "Team",
+                  "Match",
+                  "Testing",
+                  "Rest"
+                ]
+              },
+              "minutes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 600
+              },
+              "notes": {
+                "type": "string"
+              },
+              "focus": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "schedule": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "startTime",
+                  "timeZone",
+                  "team",
+                  "location",
+                  "type",
+                  "opponent",
+                  "competition",
+                  "attendance"
+                ],
+                "properties": {
+                  "startTime": {
+                    "type": "string"
+                  },
+                  "timeZone": {
+                    "type": "string"
+                  },
+                  "team": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "type": {
+                    "type": "string"
+                  },
+                  "opponent": {
+                    "type": "string"
+                  },
+                  "competition": {
+                    "type": "string"
+                  },
+                  "attendance": {
+                    "enum": [
+                      "Expected",
+                      "Unavailable",
+                      "Undecided"
+                    ]
+                  }
+                }
+              },
+              "exercises": {
+                "type": "array",
+                "maxItems": 30,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name",
+                    "sets",
+                    "prescription"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "sets": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 20
+                    },
+                    "prescription": {
+                      "type": "string"
+                    },
+                    "rest": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "measurement": {
+                      "enum": [
+                        "reps",
+                        "distance",
+                        "duration"
+                      ]
+                    },
+                    "skill": {
+                      "type": "object",
+                      "properties": {
+                        "area": {
+                          "type": "string",
+                          "enum": [
+                            "One-point shooting",
+                            "Two-point shooting",
+                            "Goal finishing",
+                            "Free-taking",
+                            "Short kick-passing",
+                            "Long kick-passing",
+                            "Both-foot development",
+                            "Ball carrying and soloing",
+                            "First touch and fielding",
+                            "Marking and defending",
+                            "Separation and deception",
+                            "Tactical intelligence and decisions"
+                          ]
+                        },
+                        "objective": {
+                          "type": "string"
+                        },
+                        "successCriteria": {
+                          "type": "string"
+                        },
+                        "foot": {
+                          "type": "string",
+                          "enum": [
+                            "Unspecified",
+                            "Left",
+                            "Right",
+                            "Both",
+                            "Not applicable"
+                          ]
+                        },
+                        "distance": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        },
+                        "angle": {
+                          "type": "string"
+                        },
+                        "pressure": {
+                          "type": "string",
+                          "enum": [
+                            "Unspecified",
+                            "Unopposed",
+                            "Passive opposition",
+                            "Active opposition",
+                            "Match-like"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "area",
+                        "objective",
+                        "successCriteria",
+                        "foot",
+                        "distance",
+                        "angle",
+                        "pressure"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

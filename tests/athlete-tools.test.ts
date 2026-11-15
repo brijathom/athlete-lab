@@ -1,6 +1,6 @@
 import { describe,expect,it,vi } from 'vitest'
 import { AthleteTools,candidateForDraft,disabledToolGrant,toolCatalog,type ToolDraft,type ToolGrant,type ToolStore } from '../src/athlete-tools'
-import { defaultSharing,CoachError } from '../src/coach-domain'
+import { defaultSharing,IntegrationError } from '../src/integration-domain'
 import { createInitialData,dateKey,uid } from '../src/domain'
 import { toRecords,same,type RecordMap } from '../src/sync-domain'
 import { completeBackup } from './fixtures/backup'
@@ -16,9 +16,9 @@ function setup() {
   const store:ToolBackend={
     authenticate:vi.fn(async token=>token==='a'?{owner:'a',clientId:null}:token==='b'?{owner:'b',clientId:null}:token==='remote'?{owner:'a',clientId:'approved-client'}:null),
     grant:vi.fn(async()=>grant),records:vi.fn(async(_token,actor)=>{const copy=structuredClone(rows);if(actor.owner==='b')(copy['profile:singleton'].payload as {name:string}).name='Account B athlete';return copy}),
-    prior:vi.fn(async(actor,key,fingerprint)=>{const old=staged.get(`${actor.owner}:${key}`);if(old&&old.fingerprint!==fingerprint)throw new CoachError(409,'Key reused');return old?.draft??null}),
+    prior:vi.fn(async(actor,key,fingerprint)=>{const old=staged.get(`${actor.owner}:${key}`);if(old&&old.fingerprint!==fingerprint)throw new IntegrationError(409,'Key reused');return old?.draft??null}),
     stage:vi.fn(async(actor,key,fingerprint,draft)=>{staged.set(`${actor.owner}:${key}`,{fingerprint,draft});return draft}),
-    draft:vi.fn(async(_token,actor,id)=>{const found=[...staged].find(([key,v])=>key.startsWith(`${actor.owner}:`)&&v.draft.id===id);if(!found)throw new CoachError(404,'Unavailable');return found[1].draft}),
+    draft:vi.fn(async(_token,actor,id)=>{const found=[...staged].find(([key,v])=>key.startsWith(`${actor.owner}:`)&&v.draft.id===id);if(!found)throw new IntegrationError(404,'Unavailable');return found[1].draft}),
     claims:vi.fn(async()=>({aud:['authenticated','https://edge.test/athlete-tools/mcp'],client_id:'approved-client'})),settings:vi.fn(async(_token,value)=>{grant=value}),list:vi.fn(async()=>[...staged.values()].map(v=>v.draft)),audit:vi.fn(async()=>[]),decide:vi.fn(async()=>({status:'approved'})),
   }
   const service=new AthleteTools(store,'https://app.test',()=>now)
@@ -26,8 +26,8 @@ function setup() {
   return {store,service,rows,data,args,staged,now,today,setGrant:(next:ToolGrant)=>{grant=next},getGrant:()=>grant}
 }
 describe('shared athlete tool services',()=>{
-  it('publishes all fourteen tools and validates authentication and exact argument boundaries',async()=>{
-    const s=setup();expect(toolCatalog).toHaveLength(14)
+  it('publishes two coaching operations and validates authentication and exact argument boundaries',async()=>{
+    const s=setup();expect(toolCatalog).toHaveLength(2)
     await expect(s.service.execute('missing','get_athlete_profile',{})).rejects.toMatchObject({status:401})
     await expect(s.service.execute('a','get_athlete_profile',{owner:'b'})).rejects.toMatchObject({status:400})
     await expect(s.service.execute('a','execute_sql' as never,{sql:'delete'})).rejects.toMatchObject({status:400})
@@ -49,7 +49,7 @@ describe('shared athlete tool services',()=>{
     const history=await s.service.execute('a','get_training_history',{from:'2025-03-31',through:'2025-04-01'})
     expect(JSON.stringify(history)).toContain('Historical test workout');expect(JSON.stringify(history)).toContain('Session RPE')
     const context=await s.service.execute('a','get_coaching_context',{recentFrom:'2025-03-31',recentThrough:'2025-04-01',upcomingFrom:s.today,upcomingThrough:s.today,categories:['training','schedule','testing','skills','matches','profile']})
-    expect(JSON.stringify(context)).toContain('untrusted data');expect(JSON.stringify(context)).toContain('not separately recorded');expect(JSON.stringify(context)).not.toContain('Submit this context to ChatGPT')
+    expect(JSON.stringify(context)).toContain('untrusted data');expect(JSON.stringify(context)).toContain('remain unknown');expect(JSON.stringify(context)).not.toContain('Submit this context to ChatGPT')
     expect(JSON.stringify(context)).toContain('Latest minus first')
     expect(JSON.stringify(context)).not.toContain('Individual attempts')
     await expect(s.service.execute('a','get_training_history',{from:'2024-01-01',through:s.today})).rejects.toMatchObject({status:400})
@@ -110,7 +110,7 @@ describe('HTTP and remote MCP security boundaries',()=>{
     const s=setup(),handler=createAthleteToolHandler(s.store,{...config,remoteEnabled:true})
     const rpc=(method:string,params?:unknown)=>req({jsonrpc:'2.0',id:1,method,params},'remote',true,null)
     const init=await (await handler(rpc('initialize',{protocolVersion:'2025-11-25'}))).json();expect(init.result.capabilities).toHaveProperty('tools')
-    const list=await (await handler(rpc('tools/list'))).json();expect(list.result.tools).toHaveLength(14)
+    const list=await (await handler(rpc('tools/list'))).json();expect(list.result.tools).toHaveLength(2)
     const result=await (await handler(rpc('tools/call',{name:'get_athlete_profile',arguments:{}}))).json();expect(result.result.isError).toBe(false)
     const invalid=await (await handler(rpc('tools/call',{name:'get_athlete_profile',arguments:{owner:'b'}}))).json();expect(invalid.result.isError).toBe(true)
     s.store.claims=vi.fn(async()=>({aud:'wrong'}));expect((await handler(rpc('tools/list'))).status).toBe(403)
@@ -127,9 +127,9 @@ describe('HTTP and remote MCP security boundaries',()=>{
 describe('WebMCP adapter',()=>{
   it('registers all tools with the same service, and unregisters on account/page teardown',async()=>{
     const registered=new Map<string,{execute:(input:unknown)=>Promise<unknown>}>(),host:SiteToolHost={registerTool:vi.fn(tool=>{registered.set(tool.name,tool)}),unregisterTool:vi.fn(name=>{registered.delete(name)})},invoke=vi.fn(async(name,input)=>({name,input}))
-    const adapter=registerAthleteSiteTools(host,invoke);await adapter.ready;expect(registered.size).toBe(14)
-    expect(await registered.get('get_athlete_profile')!.execute({})).toEqual({name:'get_athlete_profile',input:{}})
-    const old=registered.get('propose_workout')!;await adapter.dispose();expect(registered.size).toBe(0)
+    const adapter=registerAthleteSiteTools(host,invoke);await adapter.ready;expect(registered.size).toBe(2)
+    expect(await registered.get('get_coaching_context')!.execute({})).toEqual({name:'get_coaching_context',input:{}})
+    const old=registered.get('submit_programme_changes')!;await adapter.dispose();expect(registered.size).toBe(0)
     await expect(old.execute({})).rejects.toThrow('no longer active');expect(invoke).toHaveBeenCalledTimes(1)
   })
 })

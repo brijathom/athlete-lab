@@ -2,9 +2,13 @@ import { PGlite } from '@electric-sql/pglite'
 import { readFileSync } from 'node:fs'
 import { beforeAll,afterAll,beforeEach,describe,it,expect } from 'vitest'
 import { AthleteTools,type ToolDraft,type ToolStore } from '../src/athlete-tools'
-import { defaultSharing } from '../src/coach-domain'
-import { createInitialData,dateKey,uid } from '../src/domain'
+import { defaultSharing } from '../src/integration-domain'
+import { createInitialData,dateKey,uid,addDays } from '../src/domain'
 import { toRecords,parseRemote } from '../src/sync-domain'
+import {fromRecords} from '../src/sync-domain'
+import {contentFingerprint} from '../src/content-fingerprint'
+import {blankSchedule} from '../src/training-activities'
+import {blankMatch} from '../src/performance-domain'
 const a='11111111-1111-4111-8111-111111111111',b='22222222-2222-4222-8222-222222222222'
 let db:PGlite
 async function role(name:string,owner=a,client='') {await db.exec('reset role');await db.query("select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",[owner,JSON.stringify({sub:owner,...(client?{client_id:client}:{})})]);await db.exec(`set role ${name}`)}
@@ -23,7 +27,7 @@ async function staged(){return await tools.execute(a,'propose_workout',args()) a
 async function decide(id:string,accept=true,confirmed=true,owner=a){await role('authenticated',owner);return(await db.query<{v:{status:string;alreadyDecided:boolean}}>('select public.athlete_tool_decide($1,$2,$3) as v',[id,accept,confirmed])).rows[0].v}
 beforeAll(async()=>{
   db=new PGlite();await db.exec(`create role anon;create role authenticated;create role service_role bypassrls;create schema auth;create table auth.users(id uuid primary key);create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;grant usage on schema auth to authenticated,anon,service_role;grant execute on function auth.uid() to authenticated,anon,service_role;insert into auth.users values('${a}'),('${b}');`)
-  for(const file of ['202611140001_cloud_sync.sql','202611140002_coaching_chat.sql','202611140003_coaching_proposals.sql','202611150004_coaching_message_length.sql','202611150005_athlete_tools.sql'])await db.exec(readFileSync(`supabase/migrations/${file}`,'utf8'))
+  for(const file of ['202611140001_cloud_sync.sql','202611140002_coaching_chat.sql','202611140003_coaching_proposals.sql','202611150004_coaching_message_length.sql','202611150005_athlete_tools.sql','202611150006_retire_api_coaching.sql','202611150007_programme_exchange.sql'])await db.exec(readFileSync(`supabase/migrations/${file}`,'utf8'))
 },60000)
 beforeEach(async()=>{
   await db.exec('reset role');await db.exec('delete from public.athlete_tool_audit;delete from public.athlete_tool_drafts;delete from public.athlete_tool_grants;delete from public.athlete_records;')
@@ -32,6 +36,38 @@ beforeEach(async()=>{
 })
 afterAll(async()=>{await db?.close()})
 describe('real PostgreSQL tool permissions, approvals, revisions and audit',()=>{
+  it('stages a multi-activity block without saving, then approves every change and its audit atomically once',async()=>{
+    const key=uid(),base=await store.records(a,{owner:a,clientId:null}),before=structuredClone(base)
+    const programmeChanges={format:'athlete-lab-programme',version:1,idempotencyKey:key,title:'Proposed training block',programme:{name:'Reviewed block',description:'Synthetic test only'},changes:[{operation:'add',session:{title:'Team session',date:dateKey(),category:'Team',minutes:60,exercises:[],schedule:{...blankSchedule(),team:'Test club'}}},{operation:'add',session:{title:'Match fixture',date:dateKey(),category:'Match',minutes:70,exercises:[],schedule:{...blankSchedule(),opponent:'Test opponent'}}},{operation:'add',session:{title:'Rest day',date:dateKey(),category:'Rest',minutes:0,exercises:[]}}]}
+    const args={idempotencyKey:key,programmeChanges},draft=await tools.execute(a,'submit_programme_changes',args) as {draftId:string}
+    expect(await store.records(a,{owner:a,clientId:null})).toEqual(before)
+    await expect(decide(draft.draftId,true,false)).rejects.toThrow('APPROVAL_REQUIRED')
+    await expect(decide(draft.draftId,true,true,b)).rejects.toThrow('NOT_FOUND')
+    expect(await decide(draft.draftId)).toMatchObject({status:'approved',alreadyDecided:false})
+    expect(await decide(draft.draftId)).toMatchObject({status:'approved',alreadyDecided:true})
+    const after=fromRecords(await store.records(a,{owner:a,clientId:null}));expect(after.sessions.length).toBe(fromRecords(before).sessions.length+3);expect(after.programmes).toHaveLength(2);expect(after.logs).toEqual([]);expect(after.performance.matches).toEqual([])
+    expect(await tools.execute(a,'submit_programme_changes',args)).toMatchObject({draftId:draft.draftId,status:'approved'})
+    await role('authenticated');expect((await db.query("select * from public.athlete_tool_audit where event='approved'")).rows).toHaveLength(1)
+  })
+  it('rolls back an entire batch when one target collides with a concurrent write',async()=>{
+    const key=uid(),rows=await store.records(a,{owner:a,clientId:null}),before=Object.values(rows).filter(r=>r.kind==='session').length
+    const changes=[1,2].map(i=>({operation:'add',session:{title:`Proposed rest ${i}`,date:dateKey(),category:'Rest',minutes:0,exercises:[]}}))
+    const staged=await tools.execute(a,'submit_programme_changes',{idempotencyKey:key,programmeChanges:{format:'athlete-lab-programme',version:1,idempotencyKey:key,title:'Batch conflict test',changes}}) as {draftId:string}
+    const draft=await store.draft(a,{owner:a,clientId:null},staged.draftId),sessions=draft.changes.filter(c=>c.kind==='session')
+    await role('authenticated');await db.query('select public.athlete_sync($1)',[JSON.stringify([sessions[1]])])
+    await expect(decide(staged.draftId)).rejects.toThrow('STALE_DRAFT')
+    const after=await store.records(a,{owner:a,clientId:null});expect(after[`session:${sessions[0].id}`]).toBeUndefined();expect(Object.values(after).filter(r=>r.kind==='session')).toHaveLength(before+1)
+    expect((await db.query("select * from public.athlete_tool_audit where event='approved'")).rows).toEqual([])
+  })
+  it('protects a fixture from rescheduling if match participation is logged after the proposal',async()=>{
+    const rows=await store.records(a,{owner:a,clientId:null}),data=fromRecords(rows),fixture={...data.sessions[0],id:uid(),category:'Match',exercises:[],date:dateKey(),schedule:{...blankSchedule(),opponent:'Test opponent'}}
+    await role('authenticated');await db.query('select public.athlete_sync($1)',[JSON.stringify([{kind:'session',id:fixture.id,expected_revision:0,payload:fixture}])])
+    const key=uid(),draft=await tools.execute(a,'submit_programme_changes',{idempotencyKey:key,programmeChanges:{format:'athlete-lab-programme',version:1,idempotencyKey:key,title:'Move fixture',changes:[{operation:'reschedule',targetId:fixture.id,expectedFingerprint:contentFingerprint(fixture),date:addDays(dateKey(),1)}]}}) as {draftId:string}
+    const match={...blankMatch(data.performance,dateKey()),fixtureId:fixture.id,opponent:'Test opponent',minutes:45,rpe:6,participation:'Played',savedAt:new Date().toISOString()}
+    await role('authenticated');await db.query('select public.athlete_sync($1)',[JSON.stringify([{kind:'match',id:match.id,expected_revision:0,payload:match}])])
+    await expect(decide(draft.draftId)).rejects.toThrow('HISTORY_PROTECTED')
+    expect((await store.records(a,{owner:a,clientId:null}))[`session:${fixture.id}`].revision).toBe(1)
+  })
   it('denies raw staging, cross-account reads and OAuth bypasses of sync, health records and approval',async()=>{
     const draft=await staged();await role('authenticated',b)
     expect((await db.query('select * from public.athlete_tool_drafts')).rows).toHaveLength(0)
@@ -42,7 +78,7 @@ describe('real PostgreSQL tool permissions, approvals, revisions and audit',()=>
     expect((await db.query('select * from public.athlete_tool_drafts')).rows).toHaveLength(0)
     await expect(db.query("select public.athlete_sync('[]'::jsonb)")).rejects.toThrow('AUTH_REQUIRED')
     await expect(db.query('select public.athlete_tool_decide($1,true,true)',[draft.draftId])).rejects.toThrow('AUTH_REQUIRED')
-    await expect(db.query('select public.coach_decide($1,true,true)',[draft.draftId])).rejects.toThrow('AUTH_REQUIRED')
+    expect((await db.query("select to_regclass('public.coach_turns') as retired")).rows[0]).toEqual({retired:null})
     await expect(db.query('select public.athlete_tool_permissions(true,true,$1,$2)',[JSON.stringify(defaultSharing()),new Date(Date.now()+1000).toISOString()])).rejects.toThrow('AUTH_REQUIRED')
   })
   it('requires explicit approval, saves once, preserves history and atomically records an audit trail',async()=>{

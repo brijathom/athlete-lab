@@ -14,7 +14,7 @@ describe('IndexedDB persistence', () => {
     const legacy = { ...seed, version: 1, profile: { ...seed.profile, name: 'Preserved athlete' }, sessions: seed.sessions.slice(0, 2) }
     await db.put('state', legacy, 'app')
     const upgraded = await repo.load()
-    expect(upgraded).toEqual({ ...legacy, version: 3, recoveryEntries: [], performance: createPerformanceData() })
+    expect(upgraded).toEqual({ ...legacy, version: 4, recoveryEntries: [], performance: createPerformanceData() })
     expect(await db.get('state', 'app')).toEqual(upgraded)
     db.close()
   })

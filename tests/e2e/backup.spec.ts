@@ -1,3 +1,4 @@
+import {navigate} from './navigation'
 import { createPerformanceData } from '../../src/performance-domain'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
@@ -6,7 +7,7 @@ import { completeBackup, encodeBackup } from '../fixtures/backup'
 
 const navigation = (page: Page) => page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Mobile navigation' : 'Main navigation', exact: true })
 async function openImport(page: Page) {
-  await navigation(page).getByRole('button', { name: 'Profile', exact: true }).click()
+  await navigate(page,'Profile')
   await page.getByRole('button', { name: 'Import backup (JSON)' }).click()
   return page.getByRole('dialog', { name: 'Restore a backup' })
 }
@@ -28,7 +29,7 @@ test('restore previews all modules, requires confirmation and preserves exact da
   test.setTimeout(90000)
   const fixture = completeBackup()
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'A little better. Every day.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your programme.' })).toBeVisible()
   const before = await stored(page), dialog = await openImport(page)
   await upload(page, encodeBackup(fixture))
   await expect(dialog.getByRole('heading', { name: 'Backup preview' })).toBeVisible()
@@ -42,12 +43,12 @@ test('restore previews all modules, requires confirmation and preserves exact da
   await page.screenshot({ path: test.info().outputPath('backup-preview.png'), fullPage: true })
   await dialog.getByRole('button', { name: 'Restore backup', exact: true }).click()
   await expect(dialog).not.toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Let’s go, Backup.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your programme.' })).toBeVisible()
   await expect(page.locator('html')).toHaveClass('dark')
   expect(await stored(page)).toEqual(fixture)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'Let’s go, Backup.' })).toBeVisible()
-  await navigation(page).getByRole('button', { name: 'Profile', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Your programme.' })).toBeVisible()
+  await navigate(page,'Profile')
   await expect(page.getByLabel('Your name', { exact: true })).toHaveValue(fixture.profile.name)
   await expect(page.getByLabel('Weekly workout target')).toHaveValue('3')
   const downloaded = page.waitForEvent('download')
@@ -73,7 +74,7 @@ test('invalid and incompatible files never write; changing files resets confirma
   const dialog = await openImport(page), before = await stored(page)
   for (const [contents, message] of [
     ['{bad', 'not valid JSON'],
-    [encodeBackup({ ...completeBackup(), version: 99 }), 'only versions 1, 2 and 3'],
+    [encodeBackup({ ...completeBackup(), version: 99 }), 'only versions 1, 2, 3 and 4'],
     [encodeBackup({ ...completeBackup(), recoveryEntries: undefined }), 'recoveryEntries'],
     [encodeBackup({ ...completeBackup(), activeProgrammeId: 'missing' }), 'included programme'],
   ]) {
@@ -90,7 +91,7 @@ test('invalid and incompatible files never write; changing files resets confirma
   await expect(dialog).not.toBeVisible()
   expect(await stored(page)).toEqual(before)
   await page.reload()
-  await expect(page.getByRole('heading', { name: 'A little better. Every day.' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Your programme.' })).toBeVisible()
 })
 
 test('version 1 exports preview their upgrade and restore history without invented records', async ({ page }) => {
@@ -105,7 +106,7 @@ test('version 1 exports preview their upgrade and restore history without invent
   await dialog.getByLabel('I understand this replaces all data on this device.').check()
   await dialog.getByRole('button', { name: 'Restore backup', exact: true }).click()
   await expect(dialog).not.toBeVisible()
-  expect(await stored(page)).toEqual({ ...legacy, version: 3, recoveryEntries: [], performance: createPerformanceData() })
+  expect(await stored(page)).toEqual({ ...legacy, version: 4, recoveryEntries: [], performance: createPerformanceData() })
 })
 
 test('an aborted restore keeps the previous data and allows a confirmed retry', async ({ page }) => {

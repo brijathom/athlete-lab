@@ -78,17 +78,8 @@ details > summary { cursor: pointer; padding: 12px 0; min-height: 44px; font-wei
 .cloud-counts > div { display: flex; justify-content: space-between; gap: 16px; padding: 4px 0; }
 .cloud-counts dd { font-weight: 600; }
 .cloud-email { overflow-wrap: anywhere; }
-.coach-page { overflow-wrap: anywhere; }
-.coach-page fieldset { border: 1px solid var(--border, #ccd4cc); border-radius: 12px; padding: 16px; min-width: 0; }
-.coach-page legend { padding: 0 6px; font-weight: 600; }
-.coach-page textarea, .coach-page select { font-size: 16px; }
-.coach-preview { min-height: 280px; font-family: ui-monospace, monospace; }
-.coach-turn { border-bottom: 1px solid var(--border, #ccd4cc); padding-bottom: 24px; }
-.coach-question { color: var(--accent, #38735a); }
 .coach-facts { padding-left: 20px; list-style: disc; }
 .coach-facts li { margin-top: 8px; }
-.coach-history-row { display: flex; align-items: start; justify-content: space-between; gap: 16px; }
-.coach-history-row button:first-child { text-align: left; }
 .proposal-comparison { display: grid; grid-template-columns: minmax(0,1fr); gap: 24px; }
 .proposal-comparison > div { min-width: 0; padding: 16px; border: 1px solid var(--border, #ccd4cc); border-radius: 12px; }
 @media (min-width: 900px) { .proposal-comparison { grid-template-columns: repeat(2,minmax(0,1fr)); } }
@@ -96,7 +87,8 @@ details > summary { cursor: pointer; padding: 12px 0; min-height: 44px; font-wei
 /* Use the same artwork as the installed PWA icon. */
 .brand-mark{height:39px;transform:none;border-radius:9px;object-fit:contain;background:transparent}.brand-mark.small-mark{width:29px;height:29px;border-radius:6px}
 
-.coach-transcript-heading{scroll-margin-top:24px}.coach-history-row button[aria-current=true]{background:var(--soft);color:var(--green);border-radius:6px;padding:8px}
 
 .tools-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:12px;padding:12px;background:var(--soft);border-radius:8px}.tools-page input,.tools-page textarea{font-size:16px}.sidebar{overflow-y:auto}.tools-page fieldset{min-width:0}
 .tool-approval{background:var(--soft);border-inline-start:4px solid var(--green)}.tool-approval .section-heading{flex-wrap:wrap}.tool-approval .goal-check{min-height:44px;align-items:flex-start}.tool-approval .goal-check input{flex-shrink:0}
+.programme-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:22px}.week-agenda{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px;margin-top:28px}.agenda-day{min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:18px}.agenda-day>h2{font-size:13px;margin-bottom:12px}.agenda-day .session-card{box-shadow:none;padding:12px;min-height:72px}.agenda-day .session-icon{width:32px;height:36px}.agenda-day .session-card-title{font-size:12px}.session-icon.team,.badge.team{background:#e6edf9;color:#426b99}.session-icon.match,.badge.match{background:#f8ead9;color:#966024}.session-icon.rest,.badge.rest{background:var(--soft);color:var(--green)}.session-icon.testing,.badge.testing{background:#eae7f7;color:#725ca4}.session-icon.power,.badge.power{background:#fae9de;color:#a46b3a}.session-icon.tactical,.badge.tactical{background:#e5eef0;color:#52777e}.dark .session-icon,.dark .badge{background:var(--soft);color:var(--text)}.bottom-nav{grid-template-columns:repeat(4,minmax(0,1fr))}.tools-page .section-heading{flex-wrap:wrap}
+@media(max-width:700px){.week-agenda{grid-template-columns:minmax(0,1fr);gap:14px}.agenda-day{padding:16px}.agenda-day .session-card-title{font-size:13px}.programme-actions .button{flex:1;min-width:130px}.calendar-module-actions{gap:8px}.calendar-module-actions .button{min-width:120px}.bottom-nav button{font-size:10px}.calendar-week{overflow:hidden}}

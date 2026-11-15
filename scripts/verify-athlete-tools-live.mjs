@@ -32,6 +32,15 @@ try{
   const call=(name,arguments_)=>invoke(tokenA,{action:'call',name,arguments:arguments_})
   const context=await call('get_coaching_context',{recentFrom:today,recentThrough:today,upcomingFrom:today,upcomingThrough:today,categories:['profile','programme','training','schedule','recovery']})
   if(context.privacy.symptoms||context.privacy.illness||context.privacy.otherRecovery)throw new Error('Sensitive context was unexpectedly enabled.')
+  const batchKey=randomUUID(),programmeChanges={format:'athlete-lab-programme',version:1,idempotencyKey:batchKey,title:'Synthetic batch verification',changes:[{operation:'add',session:{title:'Synthetic proposed rest',date:today,category:'Rest',minutes:0,exercises:[]}},{operation:'add',session:{title:'Synthetic proposed team practice',date:today,category:'Team',minutes:45,exercises:[],schedule:{startTime:'19:30',timeZone:'Europe/Dublin',team:'Synthetic test club',location:'',type:'Practice',opponent:'',competition:'',attendance:'Expected'}}}]}
+  await invoke(tokenA,{action:'call',name:'submit_programme_changes',arguments:{idempotencyKey:randomUUID(),programmeChanges:{format:'invalid'}}},400)
+  const batch=await call('submit_programme_changes',{idempotencyKey:batchKey,programmeChanges}),batchAgain=await call('submit_programme_changes',{idempotencyKey:batchKey,programmeChanges})
+  if(batch.draftId!==batchAgain.draftId||batch.savedToTraining)throw new Error('Programme staging/idempotency failed.')
+  const afterStage=await clients[0].rpc('athlete_sync',{changes:[]})
+  if(JSON.stringify(afterStage.data.records)!==JSON.stringify(exchange.data.records))throw new Error('Unapproved programme changed training records.')
+  await invoke(tokenB,{action:'decide',draftId:batch.draftId,accept:true,confirmed:true},404)
+  await invoke(tokenA,{action:'decide',draftId:batch.draftId,accept:true,confirmed:false},403)
+  await invoke(tokenA,{action:'decide',draftId:batch.draftId,accept:false,confirmed:true})
   const draft=await call('propose_workout',args),repeat=await call('propose_workout',args)
   if(draft.draftId!==repeat.draftId||draft.savedToTraining)throw new Error('Proposal idempotency or approval failed.')
   await invoke(tokenB,{action:'decide',draftId:draft.draftId,accept:true,confirmed:true},404)
@@ -43,7 +52,7 @@ try{
   const detail=await call('get_workout_details',{id:sessionId});if(detail.completed!==null||detail.planned.revision!==1)throw new Error('Proposed session was confused with completed work.')
   const foreign=await clients[1].from('athlete_tool_drafts').select('id').eq('owner_id',ownerA);if(foreign.error||foreign.data.length)throw new Error('Draft isolation failed.')
   const mcp=await fetch(`${url}/functions/v1/athlete-tools/mcp`,{method:'POST',headers:{Authorization:`Bearer ${tokenA}`,'Content-Type':'application/json'},body:'{}'});if(mcp.status!==503)throw new Error('Remote MCP should remain disabled.')
-  console.log('PASS: live auth, sensitive-data defaults, coaching context, idempotent staging, cross-account denial, explicit approval, duplicate protection, workout details and disabled remote MCP. No AI calls or completed workouts created.')
+  console.log('PASS: live auth, sensitive-data defaults, coaching context, validated multi-activity programme staging/rejection, idempotency, cross-account denial, explicit approval, duplicate protection, workout details and disabled remote MCP. No AI calls or completed workouts created.')
 }finally{
   if(tokenA){
     try{

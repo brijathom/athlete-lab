@@ -1,8 +1,9 @@
+import {navigate} from './navigation'
 import { test,expect } from '@playwright/test'
 import { createInitialData,dateKey,uid } from '../../src/domain'
 import { toRecords } from '../../src/sync-domain'
-import { prepareProposal } from '../../src/coach-proposals'
-import { defaultSharing } from '../../src/coach-domain'
+import { prepareProposal } from '../../src/programme-proposals'
+import { defaultSharing } from '../../src/integration-domain'
 import type { ToolDraft,ToolGrant } from '../../src/athlete-tools'
 test.use({serviceWorkers:'block'})
 const owner='11111111-1111-4111-8111-111111111111',cloud='https://athlete-lab-test.supabase.co'
@@ -27,7 +28,7 @@ test('a signed-in new browser can save permissions before cloud setup, with an a
   },{owner})
   await page.goto('/')
   const nav=page.getByRole('navigation',{name:test.info().project.name.startsWith('iPhone')?'Skills and recovery':'Main navigation',exact:true})
-  await nav.getByRole('button',{name:'ChatGPT Tools',exact:true}).click()
+  await navigate(page,'ChatGPT Tools')
   await expect(page.getByText('Tool access disabled or expired.',{exact:true})).toBeVisible()
   await expect(page.getByText('You can save tool permissions now.',{exact:false})).toBeVisible()
   const save=page.getByRole('button',{name:'Save tool permissions',exact:true})
@@ -84,14 +85,14 @@ test('site tools, explicit permissions, validated import, approval and revocatio
   },{fixture,base,owner})
   await page.goto('/')
   const nav=page.getByRole('navigation',{name:test.info().project.name.startsWith('iPhone')?'Skills and recovery':'Main navigation',exact:true})
-  await nav.getByRole('button',{name:'ChatGPT Tools',exact:true}).click()
+  await navigate(page,'ChatGPT Tools')
   await expect(page.getByRole('heading',{name:'ChatGPT Tools',exact:true})).toBeVisible()
   await expect(page.getByRole('button',{name:'Save tool permissions',exact:true})).toBeDisabled()
   await page.getByLabel('Allow draft proposals and completion drafts (each requires separate approval)',{exact:true}).check()
   await page.getByLabel('I approve sharing these selected records with the connected coaching tools for 24 hours.',{exact:true}).check()
   await page.getByRole('button',{name:'Save tool permissions',exact:true}).click()
   await expect(page.getByText('Site tools registered in this browser. Keep this page open while coaching.',{exact:true})).toBeVisible()
-  expect(await page.evaluate(()=>Object.keys((window as unknown as {testSiteTools:Record<string,unknown>}).testSiteTools).length)).toBe(14)
+  expect(await page.evaluate(()=>Object.keys((window as unknown as {testSiteTools:Record<string,unknown>}).testSiteTools).length)).toBe(2)
   await page.evaluate(async()=>{const tools=(window as unknown as {testSiteTools:Record<string,{execute:(args:unknown)=>Promise<unknown>}>}).testSiteTools;await tools.get_coaching_context.execute({recentFrom:'2025-01-01',recentThrough:'2025-01-01',upcomingFrom:'2025-01-01',upcomingThrough:'2025-01-01',categories:['training']})})
   expect(reads).toBe(1);expect(grant.sharing.symptoms).toBe(false)
   await page.getByLabel('Workout draft JSON',{exact:true}).fill(JSON.stringify({tool:'propose_workout',arguments:{idempotencyKey:uid(),title:raw.title,rationale:raw.rationale,today:dateKey(),workout:raw.actions[0].session}}))

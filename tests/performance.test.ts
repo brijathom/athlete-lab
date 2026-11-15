@@ -12,7 +12,7 @@ import { matchRecord, testRecord } from './fixtures/performance'
 describe('optional catalogue and safe document migrations', () => {
   it('includes the requested tests and never seeds actual results or matches', () => {
     const data = createInitialData()
-    expect(data.version).toBe(3)
+    expect(data.version).toBe(4)
     expect(data.performance.results).toEqual([]); expect(data.performance.matches).toEqual([])
     expect(data.performance.definitions).toHaveLength(20)
     expect(() => validatePerformanceData(data.performance)).not.toThrow()
@@ -22,7 +22,7 @@ describe('optional catalogue and safe document migrations', () => {
     const { performance: _, ...source } = completeBackup()
     const legacy: Version2AppData = { ...source, version: 2 }, before = structuredClone(legacy)
     const result = migrateData(legacy)
-    expect(result).toEqual({ ...legacy, version: 3, performance: createPerformanceData() })
+    expect(result).toEqual({ ...legacy, version: 4, performance: createPerformanceData() })
     expect(legacy).toEqual(before)
     expect(result.logs).toEqual(legacy.logs); expect(result.recoveryEntries).toEqual(legacy.recoveryEntries)
     expect(migrateData(result)).toBe(result)
@@ -31,7 +31,7 @@ describe('optional catalogue and safe document migrations', () => {
     const fixture = completeBackup(), { performance: _, ...old } = fixture
     const parsed = parseBackup(encodeBackup({ ...old, version: 2 }))
     expect(parsed.sourceVersion).toBe(2)
-    expect(parsed.data).toEqual({ ...old, version: 3, performance: createPerformanceData() })
+    expect(parsed.data).toEqual({ ...old, version: 4, performance: createPerformanceData() })
     expect(parseBackup(encodeBackup(fixture)).data).toEqual(fixture)
   })
   it('upgrades existing IndexedDB data and keeps version 2 intact if the upgrade write fails', async () => {
@@ -43,7 +43,7 @@ describe('optional catalogue and safe document migrations', () => {
     try { await expect(repository.load()).rejects.toThrow('Full') } finally { put.mockRestore() }
     expect(await db.get('state', 'app')).toEqual(old)
     const migrated = await repository.load()
-    expect(migrated).toEqual({ ...old, version: 3, performance: createPerformanceData() })
+    expect(migrated).toEqual({ ...old, version: 4, performance: createPerformanceData() })
     expect(await db.get('state', 'app')).toEqual(migrated); db.close()
   })
 })
@@ -197,7 +197,7 @@ describe('evidence, complete backup validation and training context', () => {
   })
   it('counts actual preceding exposure only, excludes future/same-day records and never fills missing days', () => {
     const data = completeBackup(), context = trainingContext(data, '2025-04-02')
-    expect(context.workouts).toBe(2); expect(context.minutes).toBe(65); expect(context.load).toBe(300)
+    expect(context.workouts).toBe(3); expect(context.minutes).toBe(115); expect(context.load).toBe(300) // Match duration is known; its missing RPE adds no assumed load.
     expect(context.recovery).toHaveLength(1); expect(context.illnessDays).toBe(1)
     expect(trainingContext(data, '2025-03-01').workouts).toBe(0)
     const result = { ...testRecord(), date: '2099-01-01' }

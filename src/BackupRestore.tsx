@@ -34,7 +34,7 @@ export function BackupRestore({ current, restore, close, busy, cloudConnected = 
   return <div className="modal-content stack">
     <p className="muted">Restore an Athlete Lab JSON export from this device or another device. The entire file is checked before anything is changed.</p>
     <label>Choose JSON backup<input type="file" accept=".json,application/json" disabled={busy} onChange={e => void choose(e.target.files?.[0])}/></label>
-    <p className="muted small">Supports backup versions 1, 2 and 3, up to 25 MB. Unsaved form edits are not included in backups.</p>
+    <p className="muted small">Supports backup versions 1, 2, 3 and 4, up to 25 MB. Unsaved form edits are not included in backups.</p>
     {reading && <p role="status">Checking your backup…</p>}
     {backup && <section className="backup-preview stack" aria-label="Backup preview">
       <div className="flex items-center gap-2"><FileJson size={22}/><h3>Backup preview</h3></div>

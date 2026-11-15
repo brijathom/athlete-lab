@@ -1,3 +1,4 @@
+import {navigate} from './navigation'
 import { createPerformanceData } from '../../src/performance-domain'
 import { test, expect, type Page } from '@playwright/test'
 import { readFile } from 'node:fs/promises'
@@ -8,7 +9,7 @@ function coreNav(page: Page) {
 }
 async function modulePage(page: Page, name: 'Skills' | 'Recovery') {
   const nav = page.getByRole('navigation', { name: test.info().project.name.startsWith('iPhone') ? 'Skills and recovery' : 'Main navigation', exact: true })
-  await nav.getByRole('button', { name, exact: true }).click()
+  await navigate(page,name)
 }
 
 test('both-foot skills practice logs real attempts and persists separate performance', async ({ page }) => {
@@ -30,7 +31,7 @@ test('both-foot skills practice logs real attempts and persists separate perform
   await dialog.getByLabel('Pressure level').selectOption('Unopposed')
   await dialog.getByRole('button', { name: 'Save session', exact: true }).click()
   await expect(dialog).not.toBeVisible()
-  await coreNav(page).getByRole('button', { name: 'Calendar', exact: true }).click()
+  await navigate(page,'Calendar')
   await page.getByRole('button', { name: /Both-foot target passing/ }).click()
   await expect(dialog.getByText('Ball reaches target without bouncing', { exact: false })).toBeVisible()
   await dialog.getByRole('button', { name: 'Log this workout' }).click()
@@ -56,13 +57,13 @@ test('both-foot skills practice logs real attempts and persists separate perform
   await page.getByLabel('Filter foot', { exact: true }).selectOption('Right')
   await expect(page.locator('.comparison-card .module-stats').getByText('40.0%', { exact: true })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('skills.png'), fullPage: true })
-  await coreNav(page).getByRole('button', { name: 'Activity', exact: true }).click()
+  await navigate(page,'Activity')
   await expect(page.getByText('10 successful / 20 attempts recorded', { exact: true })).toBeVisible()
   const downloaded = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export data', exact: true }).click()
   const download = await downloaded
   const exported = JSON.parse(await readFile((await download.path())!, 'utf8'))
-  expect(exported.version).toBe(3)
+  expect(exported.version).toBe(4)
   expect(exported.logs[0].skillResults.map((r: { foot: string }) => r.foot)).toEqual(['Left', 'Right'])
   expect(exported.logs[0].skillResults[0].attempts).toBe(10)
   expect(exported.recoveryEntries).toEqual([])
@@ -89,7 +90,7 @@ test('recovery symptoms, illness and missed training appear in the calendar and 
   await dialog.getByLabel('Recovery observations').fill('Kept practice light today.')
   await dialog.getByRole('button', { name: 'Save check-in', exact: true }).click()
   await expect(dialog).not.toBeVisible()
-  await coreNav(page).getByRole('button', { name: 'Calendar', exact: true }).click()
+  await navigate(page,'Calendar')
   await expect(page.locator('.calendar-day.selected .recovery-dot')).toBeVisible()
   await expect(page.getByText('Missed: Lower-body strength', { exact: true })).toBeVisible()
   await expect(page.getByText('Kept practice light today.', { exact: true })).toBeVisible()
@@ -127,8 +128,8 @@ test('existing Milestone 1 athlete data migrates without loss or invented record
     })
   }, legacy)
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Let’s go, Existing.' })).toBeVisible()
-  await coreNav(page).getByRole('button', { name: 'Activity', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Your programme.' })).toBeVisible()
+  await navigate(page,'Activity')
   await expect(page.getByText('Preserve this actual record.', { exact: true })).toBeVisible()
   await modulePage(page, 'Skills')
   await expect(page.getByText('No practice results yet', { exact: true })).toBeVisible()
@@ -139,7 +140,7 @@ test('existing Milestone 1 athlete data migrates without loss or invented record
     request.onsuccess = () => { const db = request.result, get = db.transaction('state').objectStore('state').get('app'); get.onsuccess = () => { db.close(); resolve(get.result) }; get.onerror = () => reject(get.error) }
     request.onerror = () => reject(request.error)
   }))
-  expect(stored.version).toBe(3)
+  expect(stored.version).toBe(4)
   expect(stored.logs).toEqual(legacy.logs)
   expect(stored.recoveryEntries).toEqual([])
 })

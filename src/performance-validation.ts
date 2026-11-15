@@ -79,7 +79,11 @@ export function validateScoringRules(value: unknown, path = 'Scoring rules') {
   reference(rules.reference, `${path}.reference`)
 }
 export function validateMatch(value: unknown, path = 'Match') {
-  const m = object(value, path, ['id', 'date', 'opponent', 'competition', 'team', 'position', 'minutes', 'result', 'finalScore', 'conditions', 'tacticalNotes', 'source', 'sourceDetails', 'quality', 'rules', 'scoringMode', 'shotCoverage', 'aggregate', 'shots', 'metrics', 'reflections', 'context', 'savedAt'])
+  const m = object(value, path, ['id', 'date', 'opponent', 'competition', 'team', 'position', 'minutes', 'result', 'finalScore', 'conditions', 'tacticalNotes', 'source', 'sourceDetails', 'quality', 'rules', 'scoringMode', 'shotCoverage', 'aggregate', 'shots', 'metrics', 'reflections', 'context', 'savedAt'],['fixtureId','rpe','participation'])
+  if(m.fixtureId!==undefined)id(m.fixtureId,`${path}.fixtureId`)
+  if(m.rpe!==undefined)number(m.rpe,`${path}.rpe`,m.participation==='Did not play'?0:1,10)
+  if(m.participation!==undefined)choice(m.participation,`${path}.participation`,['Played','Did not play'])
+  if(m.participation==='Did not play'&&(m.minutes!==0||m.rpe!==0))fail(path,'did-not-play records require zero minutes and effort.')
   id(m.id, `${path}.id`); date(m.date, `${path}.date`); timestamp(m.savedAt, `${path}.savedAt`)
   text(m.opponent, `${path}.opponent`, 100, true)
   for (const key of ['competition', 'team', 'position', 'finalScore']) text(m[key], `${path}.${key}`, 100)
