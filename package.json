@@ -9,6 +9,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:cloud:live": "node --env-file=.env.local scripts/verify-cloud.mjs",
+    "test:tools:live": "node --env-file=.env.local scripts/verify-athlete-tools-live.mjs",
     "test:coach:live": "node --env-file=.env.local scripts/verify-coach-live.mjs",
     "build:edge": "node scripts/build-edge.mjs",
     "build": "tsc --noEmit && node scripts/build-edge.mjs && vite build",

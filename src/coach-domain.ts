@@ -39,7 +39,7 @@ export function parseReply(value: unknown): CoachReply {
   if (typeof v.answer !== 'string' || !v.answer.trim() || v.answer.length > 16000 || ['facts', 'interpretations', 'unknowns'].some(k => !Array.isArray(v[k]) || (v[k] as unknown[]).length > 20 || (v[k] as unknown[]).some(item => typeof item !== 'string' || item.length > 2000))) throw new CoachError(502, 'The coach returned an invalid response. No training records have changed.', 'invalid_response')
   return v as unknown as CoachReply
 }
-export const schemaObject = (properties: Record<string, unknown>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false })
+export const schemaObject = <P extends Record<string, unknown>>(properties: P) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false })
 export const replySchema = schemaObject({ answer: { type: 'string' }, facts: { type: 'array', items: { type: 'string' } }, interpretations: { type: 'array', items: { type: 'string' } }, unknowns: { type: 'array', items: { type: 'string' } } })
 /** Only replay turns with the SAME privacy scope. Narrowing sharing never replays old health details. */
 export function permittedHistory(turns: CoachTurn[], sharing: CoachSharing, now = new Date().toISOString()) {

@@ -1,0 +1,74 @@
+import { useEffect, useRef, useState } from 'react'
+import { athleteToolRequest } from './athlete-tool-client'
+import { disabledToolGrant, toolCatalog, workoutSchema, type AthleteToolName, type ToolDraft, type ToolGrant } from './athlete-tools'
+import { defaultSharing } from './coach-domain'
+import { contextSections } from './coaching-context'
+import { ProposalCard } from './ProposalCard'
+import { registerAthleteSiteTools, siteToolHost } from './webmcp'
+import { dateKey, uid } from './domain'
+
+export function AthleteToolsPage({signedIn,ready,sync,goProfile}:{signedIn:boolean;ready:boolean;sync:()=>Promise<void>;goProfile:()=>void}) {
+  const [grant,setGrant]=useState<ToolGrant>(disabledToolGrant),[drafts,setDrafts]=useState<ToolDraft[]>([]),[audit,setAudit]=useState<{draft_id:string;event:string;operation:string;created_at:string}[]>([])
+  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[registered,setRegistered]=useState(false),[importText,setImportText]=useState(''),[confirmed,setConfirmed]=useState(false)
+  const [mcp,setMcp]=useState<{enabled:boolean;url:string}>({enabled:false,url:''}),[permissionsLoaded,setPermissionsLoaded]=useState(false)
+  const mounted=useRef(true),abort=useRef(new AbortController())
+  useEffect(()=>{mounted.current=true;abort.current=new AbortController();return()=>{mounted.current=false;abort.current.abort()}},[])
+  const request=<T,>(body:unknown)=>athleteToolRequest<T>(body,abort.current.signal)
+  const load=async()=>{const result=await request<{drafts:ToolDraft[];audit:typeof audit}>({action:'drafts'});if(mounted.current){setDrafts(result.drafts);setAudit(result.audit)}}
+  const run=async(action:()=>Promise<void>)=>{setBusy(true);setError('');setNotice('');try{await action()}catch(problem){if(mounted.current && !(problem instanceof DOMException && problem.name==='AbortError'))setError(problem instanceof Error?problem.message:'Tools could not finish.')}finally{if(mounted.current)setBusy(false)}}
+  useEffect(()=>{if(!signedIn)return;void run(async()=>{const result=await request<{grant:ToolGrant;remoteMcpEnabled:boolean;mcpUrl:string}>({action:'settings'});if(!mounted.current)return;setGrant(result.grant);setPermissionsLoaded(true);setMcp({enabled:result.remoteMcpEnabled,url:result.mcpUrl});await load()})},[signedIn])
+  useEffect(()=>{
+    const host=siteToolHost()
+    if(!signedIn || !ready || !grant.enabled || Date.parse(grant.expiresAt)<=Date.now() || !host)return
+    const registration=registerAthleteSiteTools(host,async(name,args)=>{const result=await request({action:'call',name,arguments:args});if(mounted.current && !name.startsWith('get_'))await load();return result})
+    void registration.ready.then(()=>{if(mounted.current)setRegistered(true)}).catch(problem=>{if(mounted.current)setError(problem instanceof Error?problem.message:'Site tools registration failed.')})
+    return()=>{setRegistered(false);void registration.dispose().catch(()=>undefined)}
+  },[signedIn,ready,grant.enabled,grant.expiresAt])
+  useEffect(()=>{const id=new URLSearchParams(location.search).get('toolDraft');if(id&&drafts.some(d=>d.id===id))document.getElementById('tool-draft-'+id)?.scrollIntoView({block:'start'})},[drafts])
+  const savePermissions=async(enabled:boolean)=>{
+    if(enabled && !confirmed)throw new Error('Confirm the selected data-sharing permissions first.')
+    const next={...grant,enabled,expiresAt:new Date(Date.now()+86400000-10000).toISOString()}
+    await request({action:'set_permissions',grant:next});setGrant(next);setConfirmed(false);setNotice(enabled?'Tool permissions saved for 24 hours. You can revoke access at any time.':'Tool access revoked.')
+  }
+  const decide=async(id:string,accept:boolean,confirmation:boolean)=>run(async()=>{
+    if(!ready)throw new Error('Synchronise pending changes and resolve conflicts before saving a tool draft.')
+    if(accept && (!confirmation || !window.confirm('Save this reviewed draft to your training records? Only confirm work and changes you personally approve.')))return
+    await request({action:'decide',draftId:id,accept,confirmed:accept && confirmation});await load();if(accept)await sync();setNotice(accept?'Approved changes saved and synchronised.':'Draft rejected. Training records unchanged.')
+  })
+  const importDraft=async()=>{
+    if(!ready)throw new Error('Synchronise your account before importing a draft.')
+    if(new TextEncoder().encode(importText).length>128000)throw new Error('The draft exceeds 128 KB.')
+    let value:{tool:AthleteToolName;arguments:unknown}
+    try{value=JSON.parse(importText)}catch{throw new Error('Paste a valid Athlete Lab tool JSON draft.')}
+    if(!value || !['propose_workout','propose_workout_update','log_completed_workout'].includes(value.tool) || Object.keys(value).some(k=>!['tool','arguments'].includes(k)))throw new Error('Only validated workout, update or completed-workout drafts can be imported.')
+    await request({action:'call',name:value.tool,arguments:value.arguments});await load();setImportText('');setNotice('Draft validated. Review it below; nothing has been saved to training.')
+  }
+  const template={tool:'propose_workout',arguments:{idempotencyKey:`manual-${uid()}`,title:'Proposed skills session',rationale:'Example draft only; adapt with your coach.',today:dateKey(),workout:{title:'Proposed ball practice',date:dateKey(),category:'Skills',minutes:15,notes:'',exercises:[{id:null,name:'Controlled ball practice',sets:1,prescription:'Choose an appropriate drill with your coach.',rest:'As needed',notes:'',skill:null}]}}}
+  return <div className="stack tools-page"><div className="page-heading"><div><p className="eyebrow">YOUR COACHING CONNECTION</p><h1>ChatGPT Tools</h1><p className="muted">Use ChatGPT for coaching. Keep your training and approvals here.</p></div></div>
+    <p className="notice">These tools do not call the OpenAI API. ChatGPT plan limits still apply. Tool output and athlete notes are data, not instructions. Your ChatGPT project is not automatically imported.</p>
+    {!signedIn?<section className="panel stack"><h2>Sign in to connect your records</h2><p>Tools use your authenticated cloud account. Local training and Coaching Context export keep working offline.</p><button className="button primary" onClick={goProfile}>Open account settings</button></section>:<>
+      {!ready && <div className="notice stack"><p>You can save tool permissions now. Before using site tools or saving training drafts, connect this browser to your cloud records and resolve any pending changes in account settings.</p><div className="flex flex-wrap gap-3"><button className="button secondary" onClick={goProfile}>Open account settings</button><button className="text-button" disabled={busy} onClick={()=>void run(sync)}>Retry synchronisation</button></div></div>}
+      <section className="panel stack"><h2>Choose what your coach can access</h2><p className="small muted">Access expires after 24 hours. Names, goals, titles and notes may themselves contain personal information. Health data and notes are off by default. Saving permissions requires your confirmation.</p>
+        <fieldset className="form-grid"><legend>Data categories</legend>{Object.entries(contextSections).map(([key,label])=><label className="goal-check" key={key}><input type="checkbox" checked={grant.sharing.sections.includes(key as keyof typeof contextSections)} onChange={e=>{setConfirmed(false);setGrant({...grant,sharing:{...grant.sharing,sections:e.target.checked?[...grant.sharing.sections,key as keyof typeof contextSections]:grant.sharing.sections.filter(s=>s!==key)}})}}/>{label}</label>)}</fieldset>
+        <fieldset className="form-grid"><legend>Optional sensitive information</legend>{([['identity','Share my name'],['symptoms','Share symptom observations'],['illness','Share illness records'],['recovery','Share availability and recovery observations'],['notes','Share free-text notes']] as const).map(([key,label])=><label className="goal-check" key={key}><input type="checkbox" checked={grant.sharing[key]} onChange={e=>{setConfirmed(false);setGrant({...grant,sharing:{...grant.sharing,[key]:e.target.checked}})}}/>{label}</label>)}</fieldset>
+        <fieldset><legend>Optional draft permissions</legend><label className="goal-check"><input type="checkbox" checked={grant.allowDrafts} onChange={e=>{setConfirmed(false);setGrant({...grant,allowDrafts:e.target.checked})}}/>Allow draft proposals and completion drafts (each requires separate approval)</label></fieldset>
+      </section>
+      <section className="panel stack tool-approval" aria-labelledby="tool-approval-title">
+        <div className="section-heading"><h2 id="tool-approval-title">Confirm and enable access</h2><span className="badge">Required to save</span></div>
+        <p id="tool-approval-help" className="small muted">Review your choices above, then tick this separate approval to enable the Save button. Every workout change still needs your approval.</p>
+        <label className="goal-check"><input type="checkbox" checked={confirmed} aria-describedby="tool-approval-help" onChange={e=>setConfirmed(e.target.checked)}/><span>I approve sharing these selected records with the connected coaching tools for 24 hours.</span></label>
+        <div className="flex flex-wrap gap-3"><button className="button primary" disabled={busy||!permissionsLoaded||!confirmed} onClick={()=>void run(()=>savePermissions(true))}>Save tool permissions</button><button className="button secondary" disabled={busy||!permissionsLoaded||!grant.enabled} onClick={()=>void run(()=>savePermissions(false))}>Revoke tool access</button></div>
+        <p role="status">{!permissionsLoaded?'Tool permissions have not loaded yet.':grant.enabled && Date.parse(grant.expiresAt)>Date.now()?`Access enabled until ${new Date(grant.expiresAt).toLocaleString('en-IE')}`:'Tool access disabled or expired.'}</p>
+      </section>
+      <section className="panel stack"><h2>Connect ChatGPT</h2><p>{registered?'Site tools registered in this browser. Keep this page open while coaching.':'Site tools are not active here. They require a supported ChatGPT desktop built-in browser, a secure page and enabled tool permissions.'}</p><p className="small muted">In ChatGPT desktop, open this app in its built-in browser, sign in, save permissions, and inspect Site tools in the address bar. Ask ChatGPT to use get_coaching_context. Browser policy and model support determine availability; Safari and ordinary browsers may not expose site tools.</p><p className="small muted">Remote MCP: {mcp.enabled?'enabled on the server; verify your approved OAuth connection':'disabled until account eligibility and OAuth permissions are verified'}.</p>{mcp.url&&<label>Remote MCP address<input readOnly value={mcp.url}/></label>}<details><summary>Available tools ({toolCatalog.length})</summary><ul className="coach-facts">{toolCatalog.map(t=><li key={t.name}><strong>{t.name}</strong>: {t.description}</li>)}</ul></details></section>
+      <section className="panel stack"><h2>Import a ChatGPT workout draft</h2><p>Fallback for any ChatGPT plan: copy the draft format into ChatGPT, paste its JSON response here, then review and approve below. Pasting or importing never saves training automatically.</p><details><summary>Draft format and example</summary><pre className="tools-json">{JSON.stringify(template,null,2)}</pre><p className="small muted">Full workout schema:</p><pre className="tools-json">{JSON.stringify(workoutSchema,null,2)}</pre></details><label>Workout draft JSON<textarea rows={6} value={importText} onChange={e=>setImportText(e.target.value)} placeholder='{"tool":"propose_workout","arguments":{…}}'/></label><label>Or select a JSON draft<input type="file" accept="application/json,.json" onChange={e=>{const file=e.target.files?.[0];if(file)void run(async()=>{if(file.size>128000)throw new Error('The draft exceeds 128 KB.');setImportText(await file.text())})}}/></label><button className="button secondary" disabled={busy||!ready||!grant.enabled||!grant.allowDrafts||!importText.trim()} onClick={()=>void run(importDraft)}>Validate and preview draft</button></section>
+      <section className="panel stack"><div className="section-heading"><h2>Drafts awaiting your review</h2><button className="text-button" disabled={busy} onClick={()=>void run(load)}>Refresh drafts</button></div><p className="small muted">ChatGPT can stage and check drafts. Only your approval in this app can save training. Existing workout history cannot be overwritten.</p>{!drafts.length&&<p>No tool drafts.</p>}</section>
+      {drafts.map(d=><div key={d.id} id={`tool-draft-${d.id}`}>{d.proposal?<ProposalCard key={d.id} proposal={{...d.proposal,status:d.status}} busy={busy} ready={ready&&grant.enabled} decide={decide}/>:<article key={d.id} className="panel stack"><h2>{d.title}</h2><span className="badge">{d.status}</span><p>{d.rationale}</p>{d.log&&<><p>{d.log.date} · {d.log.minutes} actual minutes · RPE {d.log.rpe}/10</p><ul className="coach-facts">{d.log.results.filter(r=>r.done).map(r=><li key={`${r.exerciseId}-${r.set}`}>{d.log?.exercises.find(e=>e.id===r.exerciseId)?.name} · set {r.set} · {r.reps||'Unrecorded reps'} · {r.load||'Unrecorded load'} kg</li>)}</ul>{d.log.skillResults&&<pre className="tools-json">{JSON.stringify(d.log.skillResults,null,2)}</pre>}{d.log.notes&&<p>{d.log.notes}</p>}</>}{d.status==='pending'&&<CompletionApproval busy={busy||!ready} decide={(accept,confirmation)=>void decide(d.id,accept,confirmation)}/>}</article>}</div>)}
+      <details className="panel"><summary>Write audit trail</summary><ul className="coach-facts">{audit.map(a=><li key={`${a.draft_id}-${a.event}`}>{a.operation} · {a.event} · {new Date(a.created_at).toLocaleString('en-IE')}</li>)}</ul></details>
+    </>}{error&&<p role="alert" className="error-text">{error}</p>}{notice&&<p role="status">{notice}</p>}
+  </div>
+}
+function CompletionApproval({busy,decide}:{busy:boolean;decide:(accept:boolean,confirmed:boolean)=>void}) {
+  const [approved,setApproved]=useState(false)
+  return <><label className="goal-check"><input type="checkbox" checked={approved} onChange={e=>setApproved(e.target.checked)}/>I confirm this records training I actually performed, with the results shown.</label><div className="flex gap-3"><button className="button primary" disabled={busy||!approved} onClick={()=>decide(true,approved)}>Confirm and save completed workout</button><button className="button secondary" disabled={busy} onClick={()=>decide(false,false)}>Reject draft</button></div></>
+}

@@ -2,6 +2,12 @@
 
 A mobile-first, local-first React + TypeScript training PWA. Built with Vite, Tailwind CSS, IndexedDB (`idb`) and a generated Workbox service worker. No backend, account, subscription or AI integration is required.
 
+## Direct ChatGPT tools
+
+ChatGPT is the primary coaching interface. Open **ChatGPT Tools** for explicit data-sharing permissions, browser site tools, validated workout JSON import, reviewed drafts and the write audit trail. These tools do not call OpenAI and do not require OpenAI API billing. The earlier optional AI Coach remains available while the new connection is verified.
+
+See [connection steps, tool reference, security boundaries and limitations](docs/chatgpt-tools.md). The shared service provides 14 operations, including comprehensive coaching context and individual workout details. Remote MCP is disabled by default until account eligibility and OAuth are verified; supported ChatGPT desktop site tools and validated import reuse the same implementation.
+
 ## Phase 3B: authenticated AI coaching
 
 AI Coach is an independent OpenAI API experience. It does not inherit ChatGPT conversations or subscription access. Local training, backups and Coaching Context exports continue working without AI, an account or internet access.

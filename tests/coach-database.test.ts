@@ -24,6 +24,7 @@ beforeAll(async () => {
   await db.exec(readFileSync('supabase/migrations/202611140002_coaching_chat.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202611140003_coaching_proposals.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202611150004_coaching_message_length.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/202611150005_athlete_tools.sql', 'utf8'))
 }, 60000)
 afterAll(async () => { await db?.close() })
 describe('coaching PostgreSQL permissions, persistence and cost controls', () => {

@@ -26,3 +26,7 @@ enable_confirmations = true
 # The handler independently verifies every bearer token using Supabase getUser.
 # Disables only the gateway's legacy JWT check, not application authentication.
 verify_jwt = false
+
+[functions.athlete-tools]
+# JWTs are independently verified by getUser/getClaims; remote MCP is off by default.
+verify_jwt = false

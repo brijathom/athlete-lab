@@ -97,3 +97,6 @@ details > summary { cursor: pointer; padding: 12px 0; min-height: 44px; font-wei
 .brand-mark{height:39px;transform:none;border-radius:9px;object-fit:contain;background:transparent}.brand-mark.small-mark{width:29px;height:29px;border-radius:6px}
 
 .coach-transcript-heading{scroll-margin-top:24px}.coach-history-row button[aria-current=true]{background:var(--soft);color:var(--green);border-radius:6px;padding:8px}
+
+.tools-json{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:12px;padding:12px;background:var(--soft);border-radius:8px}.tools-page input,.tools-page textarea{font-size:16px}.sidebar{overflow-y:auto}.tools-page fieldset{min-width:0}
+.tool-approval{background:var(--soft);border-inline-start:4px solid var(--green)}.tool-approval .section-heading{flex-wrap:wrap}.tool-approval .goal-check{min-height:44px;align-items:flex-start}.tool-approval .goal-check input{flex-shrink:0}
