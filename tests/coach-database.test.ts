@@ -23,9 +23,23 @@ beforeAll(async () => {
   await db.exec(readFileSync('supabase/migrations/202611140001_cloud_sync.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202611140002_coaching_chat.sql', 'utf8'))
   await db.exec(readFileSync('supabase/migrations/202611140003_coaching_proposals.sql', 'utf8'))
+  await db.exec(readFileSync('supabase/migrations/202611150004_coaching_message_length.sql', 'utf8'))
 }, 60000)
 afterAll(async () => { await db?.close() })
 describe('coaching PostgreSQL permissions, persistence and cost controls', () => {
+  it('stores an 8,000-character message in full and rejects oversized messages atomically', async () => {
+    await role('service_role')
+    const request = uid(), question = 'x'.repeat(8000)
+    const args = [b, request, request, true, question, JSON.stringify(defaultSharing()), 'test-model', 20000, JSON.stringify(limits)]
+    await db.query('select public.coach_begin($1,$2,$3,$4,$5,$6,$7,$8,$9)', args)
+    expect((await db.query<{ question: string }>('select question from public.coach_turns where owner_id=$1', [b])).rows[0].question).toBe(question)
+    const invalid = uid()
+    await expect(db.query('select public.coach_begin($1,$2,$3,$4,$5,$6,$7,$8,$9)', [b, invalid, invalid, true, question + 'x', ...args.slice(5)])).rejects.toThrow('INVALID_REQUEST')
+    expect((await db.query('select * from public.coach_usage where owner_id=$1 and request_id=$2', [b, invalid])).rows).toEqual([])
+    // Keep existing isolation and quota checks independent of this boundary test.
+    await db.query('delete from public.coach_conversations where owner_id=$1', [b])
+    await db.query('delete from public.coach_usage where owner_id=$1', [b])
+  })
   it('denies direct creation and service-only functions to browser and anonymous roles', async () => {
     await role('authenticated')
     await expect(begin(a, first)).rejects.toThrow('permission denied')

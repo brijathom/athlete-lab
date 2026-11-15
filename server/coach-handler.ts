@@ -1,4 +1,4 @@
-import { CoachError, coachContext, permittedHistory, strictObject, validateSharing, validateCoachDate, type CoachConversation, type CoachSharing, type CoachTurn } from '../src/coach-domain'
+import { CoachError, coachContext, permittedHistory, strictObject, validateSharing, validateCoachDate, MAX_COACH_QUESTION_LENGTH, type CoachConversation, type CoachSharing, type CoachTurn } from '../src/coach-domain'
 import { prepareProposal, proposalCandidate, proposalTargets, type PreparedProposal } from '../src/coach-proposals'
 import { fromRecords, type RecordMap } from '../src/sync-domain'
 import type { CoachModel, ModelOutput } from './openai-responses'
@@ -23,7 +23,7 @@ const id = (value: unknown): string => { if (typeof value !== 'string' || !uuidP
 async function requestJSON(request: Request) {
   if (!request.headers.get('content-type')?.includes('application/json') || !request.body) throw new CoachError(400, 'Send a JSON coaching request.', 'invalid_request')
   const reader = request.body.getReader(); const chunks: Uint8Array[] = []; let size = 0
-  while (true) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 12000) { await reader.cancel(); throw new CoachError(413, 'This request is too large. Shorten your question.', 'request_too_large') }; chunks.push(value) }
+  while (true) { const { done, value } = await reader.read(); if (done) break; size += value.length; if (size > 64000) { await reader.cancel(); throw new CoachError(413, 'This request is too large. Shorten your question.', 'request_too_large') }; chunks.push(value) }
   const combined = new Uint8Array(size); let offset = 0; for (const chunk of chunks) { combined.set(chunk, offset); offset += chunk.length }
   try { return JSON.parse(new TextDecoder().decode(combined)) } catch { throw new CoachError(400, 'The coaching request is not valid JSON.', 'invalid_request') }
 }
@@ -71,7 +71,7 @@ export function createCoachHandler(store: CoachStore, model: CoachModel, origins
       if (new TextEncoder().encode(JSON.stringify(context)).length > 24000) throw new CoachError(413, 'The selected context is too large. Choose fewer sections or a shorter reporting period.', 'context_too_large')
       if (body.action === 'preview') return send({ context, history, source: 'Current authenticated cloud records; unsynchronised local changes are not included.' })
       const requestId = id(body.requestId)
-      if (typeof body.question !== 'string' || !body.question.trim() || body.question.length > 1000) throw new CoachError(400, 'Enter a question of 1–1,000 characters.', 'invalid_question')
+      if (typeof body.question !== 'string' || !body.question.trim() || body.question.length > MAX_COACH_QUESTION_LENGTH) throw new CoachError(400, 'Enter a question of 1–8,000 characters.', 'invalid_question')
       if (body.action === 'propose' && !sharing.sections.some(s => s === 'programme' || s === 'schedule')) throw new CoachError(400, 'Include Programme or Upcoming schedule before requesting a training proposal.', 'missing_plan_context')
       const input = { context, history, question: body.question.trim(), ...(body.action === 'propose' ? { targets: { ...proposalTargets(data, body.today, sharing.upcomingDays, sharing.notes), dateWindow: context.reportingPeriod } } : {}) }
       await model.verify()

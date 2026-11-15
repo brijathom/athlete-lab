@@ -5,6 +5,8 @@ import { toRecords } from '../src/sync-domain'
 import { createCoachHandler, type CoachStore } from '../server/coach-handler'
 import { OpenAIResponses, type CoachModel, type ModelOutput } from '../server/openai-responses'
 import { prepareProposal } from '../src/coach-proposals'
+import { createInitialData, dateKey } from '../src/domain'
+import { defaultContextOptions, generateCoachingContext } from '../src/coaching-context'
 
 const now = '2025-04-01T12:00:00Z', requestId = '11111111-1111-4111-8111-111111111111', otherId = '22222222-2222-4222-8222-222222222222'
 const answer = { answer: 'Review your recorded training before selecting the next session.', facts: ['No inference from unlogged days.'], interpretations: ['A conditional plan may help.'], unknowns: ['Current readiness is unknown.'] }
@@ -33,6 +35,25 @@ function setup() {
   return { handler, call, chat, store, model, data, rows, turns, conversations }
 }
 describe('coaching security, grounding and privacy', () => {
+  it('describes integrated cloud coaching accurately and identifies repeated session references without changing exports', () => {
+    const data = createInitialData(), today = dateKey(), timestamp = new Date().toISOString()
+    const context = coachContext(data, defaultSharing(), today, timestamp)
+    const programme = context.sections.find(section => section.key === 'programme')!
+    const schedule = context.sections.find(section => section.key === 'schedule')!
+    expect(schedule.records.length).toBeGreaterThan(0)
+    for (const record of schedule.records) {
+      expect(record.facts['Session record ID']).toBeTruthy()
+      expect(programme.records.some(entry => entry.facts['Session record ID'] === record.facts['Session record ID'])).toBe(true)
+    }
+    expect(context.interpretation.join(' ')).toContain('server-authorised snapshot')
+    expect(context.interpretation.join(' ')).not.toContain('Submit this context to ChatGPT')
+    expect(context.interpretation.join(' ')).not.toContain('No data has been transmitted')
+    const exported = generateCoachingContext(data, defaultContextOptions('detailed', today), timestamp)
+    expect(JSON.stringify(exported)).not.toContain('Session record ID')
+    expect(exported.interpretation.join(' ')).toContain('No data has been transmitted')
+    const excluded = coachContext(data, { ...defaultSharing(), sections: ['profile'] }, today, timestamp)
+    expect(JSON.stringify(excluded.sections)).not.toContain('Session record ID')
+  })
   it('rejects unsigned requests and disallowed origins before loading records or calling OpenAI', async () => {
     const s = setup()
     expect((await s.call(s.chat, 'invalid')).status).toBe(401)
@@ -43,9 +64,19 @@ describe('coaching security, grounding and privacy', () => {
     const s = setup()
     expect((await s.call({ ...s.chat, owner: 'b' })).status).toBe(400)
     expect((await s.call({ ...s.chat, today: '2030-01-01' })).status).toBe(400)
-    expect((await s.call({ ...s.chat, question: 'x'.repeat(13000) })).status).toBe(413)
+    expect((await s.call({ ...s.chat, question: 'x'.repeat(65000) })).status).toBe(413)
     expect(() => validateSharing({ ...defaultSharing(), symptoms: 'true' })).toThrow()
     expect(() => validateSharing({ ...defaultSharing(), sections: ['__proto__'] })).toThrow()
+  })
+  it('accepts complete messages up to 8,000 characters and rejects longer messages before a paid call', async () => {
+    const s = setup(), question = 'Training details. '.padEnd(8000, 'x')
+    expect((await s.call({ ...s.chat, question })).status).toBe(200)
+    expect(s.model.generate).toHaveBeenCalledWith(expect.objectContaining({ question }))
+    const invalid = setup()
+    expect((await invalid.call({ ...invalid.chat, question: question + 'x' })).status).toBe(400)
+    expect(invalid.model.generate).not.toHaveBeenCalled()
+    const unicode = setup()
+    expect((await unicode.call({ ...unicode.chat, question: '球'.repeat(8000) })).status).toBe(200)
   })
   it('constructs server context from the authenticated account, preserves zero/unknown and keeps completed work distinct from plans', async () => {
     const s = setup(), response = await s.call({ ...s.chat, action: 'preview', requestId: undefined, question: undefined })
@@ -135,6 +166,10 @@ describe('OpenAI Responses adapter', () => {
     const body = JSON.parse(request.mock.calls[1][1]!.body as string)
     expect(body.store).toBe(false); expect(body.text.format).toMatchObject({ type: 'json_schema', strict: true })
     expect(body.instructions).toContain('UNTRUSTED DATA'); expect(body.instructions).toContain('Never diagnose')
+    expect(body.instructions).toContain('operating INSIDE Athlete Lab')
+    expect(body.instructions).toContain('AFTER separate explicit athlete approval')
+    expect(body.instructions).toContain('do not automatically create profile, recovery or workout records')
+    expect(body.instructions).toContain('matching Session record ID across sections represents one session')
     expect(model.reservation(input)).toBeGreaterThan(new TextEncoder().encode(JSON.stringify(body)).length)
     expect(JSON.stringify(body)).not.toContain('server-secret')
   })

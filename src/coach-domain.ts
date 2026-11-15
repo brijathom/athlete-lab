@@ -1,6 +1,8 @@
 import { addDays, validDate, type AppData } from './domain'
 import { contextSections, defaultContextOptions, generateCoachingContext, type ContextSection } from './coaching-context'
 
+export const MAX_COACH_QUESTION_LENGTH = 8000
+
 export class CoachError extends Error { constructor(public status: number, message: string, public code = 'coach_error') { super(message) } }
 export interface CoachSharing {
   historyDays: number; upcomingDays: number; sections: ContextSection[]
@@ -22,7 +24,14 @@ export function validateSharing(value: unknown): CoachSharing {
 export function coachContext(data: AppData, sharing: CoachSharing, today: string, now: string) {
   validateCoachDate(today, now)
   const options = { ...defaultContextOptions('detailed', today), historyStart: addDays(today, 1 - sharing.historyDays), upcomingEnd: addDays(today, sharing.upcomingDays - 1), sections: sharing.sections, includeIdentity: sharing.identity, includeSymptoms: sharing.symptoms, includeIllness: sharing.illness, includeRecovery: sharing.recovery, includeNotes: sharing.notes }
-  return generateCoachingContext(data, options, now)
+  const context = generateCoachingContext(data, { ...options, includeSessionIds: true }, now)
+  context.interpretation = [
+    'This is a fresh, server-authorised snapshot of the signed-in athlete’s cloud records for integrated Athlete Lab coaching, not a manually submitted export. Only selected categories and dates are included.',
+    ...context.interpretation.filter(text => !text.startsWith('This is a deterministic context export') && !text.startsWith('No data has been transmitted.')),
+    'The same Session record ID may appear in programme and schedule sections. It is one planned session, not duplicate records or additional workload. Distinct IDs identify separate records, not necessarily accidental duplicates.',
+    'Chat facts are self-reported context, not automatically saved profile details, health records or completed workout logs. Planned-session changes require a structured proposal and separate explicit approval in Athlete Lab.',
+  ]
+  return context
 }
 export function validateCoachDate(today: string, now: string) { if (!validDate(today) || Math.abs(Date.parse(`${today}T12:00:00Z`) - Date.parse(now)) > 36 * 3600000) throw new CoachError(400, 'Your device date is incorrect. Check it before using coaching.', 'invalid_date') }
 export function parseReply(value: unknown): CoachReply {

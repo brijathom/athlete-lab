@@ -11,18 +11,27 @@ test('coach previews selected data, saves and reopens answers, exports and delet
   Object.values(base).forEach(row => { row.revision = 1 })
   let turn: Record<string, unknown> | null = null, deleted = false
   const reply = { answer: 'Choose work based on your recorded training and current availability.', facts: ['Your completed workouts are recorded separately from planned sessions.'], interpretations: ['A conservative progression may be appropriate.'], unknowns: ['Current readiness is unknown.'] }
+  const olderId = '22222222-2222-4222-8222-222222222222'
+  const olderTurns = Array.from({ length: 5 }, (_, index) => ({ request_id: `saved-${index}`, conversation_id: olderId, question: `Earlier question ${index + 1}`, sharing: {}, reply: { ...reply, answer: `Earlier answer ${index + 1}` }, state: 'completed', model: 'mock', created_at: new Date().toISOString() }))
+  let failOlderOnce = true
   await context.route(`${cloud}/**`, async route => {
     const request = route.request(), body = request.postDataJSON(), path = new URL(request.url()).pathname
     if (path === '/rest/v1/rpc/athlete_sync') return route.fulfill({ json: { schemaVersion: 1, applied: true, records: Object.values(base) } })
     if (path !== '/functions/v1/coach') return route.fulfill({ status: 400, json: { message: 'Unexpected test request' } })
-    if (body.action === 'list') return route.fulfill({ json: { conversations: turn && !deleted ? [{ id: turn.conversation_id, title: turn.question, created_at: turn.created_at }] : [], limits: { hourly: 6, daily: 20 } } })
+    if (body.action === 'list') return route.fulfill({ json: { conversations: [...(turn && !deleted ? [{ id: turn.conversation_id, title: turn.question, created_at: turn.created_at }] : []), { id: olderId, title: 'Earlier conversation', created_at: new Date().toISOString() }], limits: { hourly: 6, daily: 20 } } })
     if (body.action === 'preview') return route.fulfill({ json: { source: 'Authenticated cloud records', symptoms: body.sharing.symptoms ? 'Left Knee' : 'Excluded', completedWorkouts: fixture.logs.length } })
     if (body.action === 'chat') {
       expect(body.sharing.symptoms).toBe(false); expect(body).not.toHaveProperty('athleteData')
       turn = { request_id: body.requestId, conversation_id: body.requestId, question: body.question, sharing: body.sharing, reply, state: 'completed', model: 'deterministic-test-model', created_at: new Date().toISOString() }
       return route.fulfill({ json: { turn } })
     }
-    if (body.action === 'history') return route.fulfill({ json: { turns: deleted ? [] : [turn] } })
+    if (body.action === 'history') {
+      if (body.conversationId === olderId) {
+        if (failOlderOnce) { failOlderOnce = false; return route.fulfill({ status: 503, json: { error: 'History temporarily unavailable. Please retry.' } }) }
+        return route.fulfill({ json: { turns: olderTurns } })
+      }
+      return route.fulfill({ json: { turns: deleted ? [] : [turn] } })
+    }
     if (body.action === 'export') return route.fulfill({ json: { format: 'athlete-lab-coaching-history', data: [turn] } })
     if (body.action === 'delete') { deleted = true; return route.fulfill({ json: { deleted: true } }) }
     return route.fulfill({ status: 400, json: { error: 'Unexpected operation' } })
@@ -38,7 +47,16 @@ test('coach previews selected data, saves and reopens answers, exports and delet
   await expect(page.getByRole('heading', { name: 'AI Coach', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Preview shared context', exact: true }).click()
   await expect(page.getByLabel('Authorised context preview')).toHaveValue(/Excluded/)
-  await page.getByLabel('Your coaching question', { exact: true }).fill('Review my last seven days')
+  const questionBox = page.getByLabel('Your coaching question', { exact: true })
+  await questionBox.fill('x'.repeat(8001))
+  await expect(questionBox).toHaveValue('x'.repeat(8001))
+  await expect(page.getByRole('alert')).toContainText('Your full text has been kept')
+  await page.getByLabel('I approve sending this question and the selected context to OpenAI.').check()
+  await expect(page.getByRole('button', { name: 'Ask the coach', exact: true })).toBeDisabled()
+  await questionBox.fill('x'.repeat(8000))
+  await expect(page.getByRole('button', { name: 'Ask the coach', exact: true })).toBeEnabled()
+  await page.getByLabel('I approve sending this question and the selected context to OpenAI.').uncheck()
+  await questionBox.fill('Review my last seven days')
   await expect(page.getByRole('button', { name: 'Ask the coach', exact: true })).toBeDisabled()
   await page.getByLabel('I approve sending this question and the selected context to OpenAI.').check()
   await page.getByRole('button', { name: 'Ask the coach', exact: true }).click()
@@ -47,7 +65,17 @@ test('coach previews selected data, saves and reopens answers, exports and delet
   await page.reload(); await nav.getByRole('button', { name: 'AI Coach', exact: true }).click()
   await page.getByText('Conversation history', { exact: true }).click()
   await page.getByRole('button', { name: 'Review my last seven days', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Conversation · 1 saved exchange', exact: true })).toBeInViewport()
   await expect(page.getByText(reply.answer, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Earlier conversation', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveText('History temporarily unavailable. Please retry.')
+  await expect(page.getByRole('alert')).toBeInViewport()
+  await expect(page.getByText(reply.answer, { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Earlier conversation', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Conversation · 5 saved exchanges', exact: true })).toBeInViewport()
+  for (let index = 1; index <= 5; index++) await expect(page.getByRole('heading', { name: `Earlier question ${index}`, exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Earlier conversation', exact: true })).toHaveAttribute('aria-current', 'true')
+  await page.getByRole('button', { name: 'Review my last seven days', exact: true }).click()
   const download = page.waitForEvent('download'); await page.getByRole('button', { name: 'Export coaching history' }).click(); expect((await download).suggestedFilename()).toContain('coaching')
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Delete conversation Review my last seven days', exact: true }).click()
